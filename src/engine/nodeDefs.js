@@ -22,6 +22,14 @@ function makeOscSynth(wave, envelope) {
   return new Tone.PolySynth(Tone.Synth, { oscillator: { type: wave }, envelope });
 }
 
+// Mono equivalent for the sequencer. 'fm'/'am' are not basic oscillator types,
+// so they need a dedicated FMSynth/AMSynth rather than oscillator.type = 'fm'.
+function makeMonoSynth(wave, envelope) {
+  if (wave === 'fm') return new Tone.FMSynth({ modulationIndex: 8, envelope, modulationEnvelope: { attack: envelope.attack, decay: 0.1, sustain: 1, release: envelope.release } });
+  if (wave === 'am') return new Tone.AMSynth({ envelope, harmonicity: 2 });
+  return new Tone.Synth({ oscillator: { type: wave }, envelope });
+}
+
 export const NODE_DEFS = {
   // ─────────────────────────── SOURCES ───────────────────────────
   oscillator: {
@@ -261,7 +269,8 @@ export const NODE_DEFS = {
     outputs: [{ id: 'out', kind: 'audio' }],
     defaults: { notes: ['C3', 'D#3', 'G3', 'A#3'], division: '2n', mode: 'up', wave: 'sine', level: 0.5, pan: 0, gate: 0.95, enabled: true },
     create(ctx, p) {
-      const synth = new Tone.Synth({ oscillator: { type: p.wave }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.6, release: 0.4 } });
+      const SEQ_ENV = { attack: 0.05, decay: 0.2, sustain: 0.6, release: 0.4 };
+      let synth = makeMonoSynth(p.wave, SEQ_ENV);
       const level = new Tone.Gain(p.level);
       const pan = new Tone.Panner(p.pan);
       synth.connect(level); level.connect(pan);
@@ -301,7 +310,16 @@ export const NODE_DEFS = {
           state[key] = val;
           if (key === 'level') level.gain.rampTo(val, 0.08);
           else if (key === 'pan') pan.pan.rampTo(val, 0.08);
-          else if (key === 'wave') synth.set({ oscillator: { type: val } });
+          else if (key === 'wave') {
+            // 'fm'/'am' need a different synth class, so rebuild rather than set
+            // oscillator.type (which would throw for those values).
+            try { synth.triggerRelease(); } catch (e) {}
+            try { synth.disconnect(); } catch (e) {}
+            const old = synth;
+            setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
+            synth = makeMonoSynth(val, SEQ_ENV);
+            synth.connect(level);
+          }
           else if (key === 'division' && state.running) buildLoop();
         },
         dispose() { if (loop) loop.dispose(); try { synth.dispose(); } catch (e) {} level.dispose(); pan.dispose(); },
@@ -327,7 +345,8 @@ export const NODE_DEFS = {
       beats: 8, wave: 'sine', level: 0.6, pan: 0, mode: 'order', enabled: true,
     },
     create(ctx, p) {
-      const synth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: p.wave }, envelope: { attack: 2, decay: 0.3, sustain: 1, release: 4 } });
+      const PROG_ENV = { attack: 2, decay: 0.3, sustain: 1, release: 4 };
+      let synth = makeOscSynth(p.wave, PROG_ENV);
       const level = new Tone.Gain(p.level);
       const pan = new Tone.Panner(p.pan);
       synth.connect(level); level.connect(pan);
@@ -365,7 +384,15 @@ export const NODE_DEFS = {
           state[key] = val;
           if (key === 'level') level.gain.rampTo(val, 0.08);
           else if (key === 'pan') pan.pan.rampTo(val, 0.08);
-          else if (key === 'wave') synth.set({ oscillator: { type: val } });
+          else if (key === 'wave') {
+            // Rebuild for 'fm'/'am' (and any wave) so it never throws on set().
+            try { synth.releaseAll(); } catch (e) {}
+            try { synth.disconnect(); } catch (e) {}
+            const old = synth;
+            setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
+            synth = makeOscSynth(val, PROG_ENV);
+            synth.connect(level);
+          }
           else if ((key === 'beats' || key === 'steps') && state.running) buildLoop();
         },
         dispose() { if (loop) loop.dispose(); try { synth.dispose(); } catch (e) {} level.dispose(); pan.dispose(); },

@@ -86,7 +86,9 @@ class GraphEngine {
 
   updateParam(id, key, value) {
     const h = this.handles.get(id);
-    if (h) h.update(key, value);
+    // Guard the audio-side update so an unsupported value can never block the
+    // caller (and thus the React params/UI update). Surface it as a warning.
+    if (h) { try { h.update(key, value); } catch (e) { console.warn(`updateParam failed for ${id}.${key}=`, value, e); } }
   }
 
   // Remove every node + connection and dispose all handles so no orphaned
