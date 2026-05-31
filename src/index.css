@@ -1,63 +1,59 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400&display=swap');
-@import url('https://fonts.cdnfonts.com/css/cal-sans');
+@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&family=Inter:wght@200;300;400;500&display=swap');
 
 @import "tailwindcss";
 
 @theme {
-  --font-cal: 'Cal Sans', sans-serif;
+  --font-cal: 'Cal Sans', 'Inter', sans-serif;
   --font-inter: 'Inter', sans-serif;
 
-  --color-bg: #0a0a0b;
-  --color-surface: #111114;
-  --color-surface2: #18181c;
-  --color-border: #222228;
+  --color-bg: #08080a;
+  --color-surface: #101013;
+  --color-surface2: #16161b;
+  --color-surface3: #1d1d23;
+  --color-border: #26262e;
+  --color-borderlight: #34343e;
 
-  --color-sage: #b8d4c8;
-  --color-lavender: #c4b8d4;
-  --color-peach: #d4c4b8;
-  --color-sky: #b8c8d4;
-  --color-rose: #d4b8c4;
-  --color-amber: #d4cbb8;
+  /* Slate + Ash muted pastels */
+  --color-sage: #8fbaa9;
+  --color-lavender: #9a93d4;
+  --color-blue: #6f8fc4;
+  --color-rose: #d48fb0;
+  --color-pink: #d98fc4;
+  --color-amber: #c9a878;
+  --color-citron: #c2cf8a;
+  --color-red: #d97a6a;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
 }
 
 body {
-  background-color: #0a0a0b;
-  color: #ffffff;
+  background-color: #08080a;
+  color: #f2f2f4;
   font-family: 'Inter', sans-serif;
   font-weight: 200;
   margin: 0;
   padding: 0;
-  min-height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3, .font-cal {
+h1, h2, h3, h4, .font-cal {
   font-family: 'Cal Sans', sans-serif;
   font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2c2c34; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a44; }
 
-::-webkit-scrollbar-track {
-  background: #0a0a0b;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333340;
-  border-radius: 2px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #444455;
-}
-
+/* Range inputs */
 input[type=range] {
   -webkit-appearance: none;
   appearance: none;
@@ -65,25 +61,38 @@ input[type=range] {
   cursor: pointer;
   width: 100%;
 }
-
 input[type=range]::-webkit-slider-track {
-  background: #222228;
+  background: #26262e;
   height: 2px;
   border-radius: 1px;
 }
-
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: #ffffff;
-  margin-top: -5px;
+  background: #f2f2f4;
+  margin-top: -4.5px;
 }
 
-.glow-sage { box-shadow: 0 0 20px rgba(184, 212, 200, 0.15); }
-.glow-lavender { box-shadow: 0 0 20px rgba(196, 184, 212, 0.15); }
-.glow-peach { box-shadow: 0 0 20px rgba(212, 196, 184, 0.15); }
-.glow-sky { box-shadow: 0 0 20px rgba(184, 200, 212, 0.15); }
-.glow-rose { box-shadow: 0 0 20px rgba(212, 184, 196, 0.15); }
+/* Vertical range (mixer faders) */
+input[type=range].vertical {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 6px;
+  height: 100%;
+}
+
+.no-select { user-select: none; -webkit-user-select: none; }
+
+.cable-flow {
+  stroke-dasharray: 4 6;
+  animation: flow 0.6s linear infinite;
+}
+@keyframes flow { to { stroke-dashoffset: -10; } }
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.04); }
+}
