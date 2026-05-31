@@ -62,6 +62,37 @@ function randomParams(type, key) {
   }
 }
 
+// Shared in-key derivation used at BOTH node-creation time and global-key
+// retune time so a freshly-added source and a live-retuned one stay consistent.
+// Returns only the params that should change for the given global key; an empty
+// object means "leave defaults as-is" (e.g. unpitched noise, or no key).
+function keyOverrides(type, params, key) {
+  if (!key || !key.root) return {};
+  const { root, chord } = key;
+  switch (type) {
+    case 'oscillator':
+    case 'drift':
+    case 'grain': {
+      const o = {};
+      if ('root' in params) o.root = root;
+      if ('chord' in params && chord) o.chord = chord;
+      return o;
+    }
+    case 'noteCycler': {
+      if (!Array.isArray(params.notes)) return {};
+      const len = params.notes.length || 4;
+      const cn = getChordNotes(root, 3, chord || 'add9');
+      return { notes: Array.from({ length: len }, (_, i) => cn[i % cn.length]) };
+    }
+    case 'progression': {
+      if (!Array.isArray(params.steps)) return {};
+      return { steps: params.steps.map((s) => ({ ...s, root, chord: chord || s.chord })) };
+    }
+    default:
+      return {};
+  }
+}
+
 export function useGraph() {
   const [initialized, setInitialized] = useState(false);
   const [nodes, setNodes] = useState([]);
@@ -85,6 +116,9 @@ export function useGraph() {
     if (!def) return null;
     const id = `n${++nodeCounter}`;
     const params = { ...structuredClone(def.defaults) };
+    // New source nodes inherit the current global key so they drop in on-key
+    // (baked into both the audio handle and the React node state below).
+    Object.assign(params, keyOverrides(type, params, globalKeyRef.current));
     graphEngine.addNode(id, type, params);
     const node = { id, type, x, y, params };
     setNodes((prev) => [...prev, node]);
@@ -148,19 +182,10 @@ export function useGraph() {
     globalKeyRef.current = next;
     setGlobalKeyState(next);
     setNodes((prev) => prev.map((n) => {
-      const params = { ...n.params };
-      if ('root' in params) { params.root = next.root; graphEngine.updateParam(n.id, 'root', next.root); }
-      if ('chord' in params && next.chord) { params.chord = next.chord; graphEngine.updateParam(n.id, 'chord', next.chord); }
-      if (n.type === 'progression' && Array.isArray(params.steps)) {
-        const steps = params.steps.map((s) => ({ ...s, root: next.root, chord: next.chord || s.chord }));
-        params.steps = steps; graphEngine.updateParam(n.id, 'steps', steps);
-      }
-      if (n.type === 'noteCycler' && Array.isArray(params.notes)) {
-        const cn = getChordNotes(next.root, 3, next.chord || 'add9');
-        const notes = params.notes.map((_, i) => cn[i % cn.length]);
-        params.notes = notes; graphEngine.updateParam(n.id, 'notes', notes);
-      }
-      return { ...n, params };
+      const ov = keyOverrides(n.type, n.params, next);
+      if (!Object.keys(ov).length) return n;
+      Object.entries(ov).forEach(([k, v]) => graphEngine.updateParam(n.id, k, v));
+      return { ...n, params: { ...n.params, ...ov } };
     }));
   }, []);
 
