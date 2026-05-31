@@ -208,7 +208,11 @@ export function useGraph() {
   const setMasterVolume = useCallback((v) => { graphEngine.setMasterVolume(v); setMasterVolumeState(v); }, []);
 
   // ── Recording ──
-  const startRecording = useCallback(async () => { await graphEngine.startRecording(); setIsRecording(true); }, []);
+  const startRecording = useCallback(async () => {
+    const ok = await graphEngine.startRecording();
+    if (ok) setIsRecording(true);
+    else console.warn('Record Mix: could not start recording (see earlier error)');
+  }, []);
   const stopRecording = useCallback(async () => {
     const blob = await graphEngine.stopRecording();
     setIsRecording(false);

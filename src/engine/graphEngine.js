@@ -14,6 +14,28 @@ function concatFloat32(chunks) {
   return out;
 }
 
+// AudioWorklet processor (registered from a Blob URL at runtime — no separate
+// file needed). It forwards the master's Float32 PCM frames to the main thread.
+// AudioWorklet is the reliable, non-deprecated replacement for ScriptProcessor,
+// whose onaudioprocess was not firing here (so nothing was ever captured).
+const RECORDER_WORKLET_SRC = `
+class PolyRecorder extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (input && input.length) {
+      const l = input[0];
+      const r = input.length > 1 ? input[1] : input[0];
+      if (l && l.length) {
+        // Copy: the underlying buffers are reused between render quanta.
+        this.port.postMessage({ l: new Float32Array(l), r: new Float32Array(r) });
+      }
+    }
+    return true; // keep the processor alive for the whole session
+  }
+}
+registerProcessor('poly-recorder', PolyRecorder);
+`;
+
 function encodeWavPCM16(left, right, sampleRate) {
   const numChannels = 2;
   const numFrames = Math.min(left.length, right.length);
@@ -261,42 +283,68 @@ class GraphEngine {
     return -Infinity;
   }
 
-  // ── Master recording / export (true PCM WAV) ───────────
-  async startRecording() {
-    if (!this.initialized || this._recording) return;
-    const ctx = Tone.getContext().rawContext;
-    this._recRate = ctx.sampleRate;
-    this._recL = [];
-    this._recR = [];
-    // ScriptProcessor taps the master as Float32 PCM. Deprecated but works in
-    // every current browser and is the simplest reliable live PCM capture.
-    const node = ctx.createScriptProcessor(4096, 2, 2);
-    node.onaudioprocess = (e) => {
-      const ib = e.inputBuffer;
-      const l = ib.getChannelData(0);
-      const r = ib.numberOfChannels > 1 ? ib.getChannelData(1) : l;
-      this._recL.push(new Float32Array(l));
-      this._recR.push(new Float32Array(r));
-    };
-    // Pull the node by routing it to a silent sink so onaudioprocess fires
-    // without adding the (silent) output back to the speakers audibly.
-    const silent = new Tone.Gain(0).toDestination();
-    Tone.connect(this.limiter, node);
-    node.connect(silent.input);
-    this._recNode = node;
-    this._recSilent = silent;
-    this._recording = true;
+  // ── Master recording / export (true PCM WAV via AudioWorklet) ───────────
+  async _ensureRecorderWorklet(rawCtx) {
+    if (this._recWorkletReady) return;
+    const blob = new Blob([RECORDER_WORKLET_SRC], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    try {
+      await rawCtx.audioWorklet.addModule(url);
+      this._recWorkletReady = true;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
+
+  async startRecording() {
+    if (!this.initialized || this._recording) return false;
+    try {
+      const rawCtx = Tone.getContext().rawContext;
+      // The record click is a user gesture — make sure the context is running.
+      if (rawCtx.state === 'suspended') { try { await rawCtx.resume(); } catch (e) {} }
+      await this._ensureRecorderWorklet(rawCtx);
+      this._recRate = rawCtx.sampleRate;
+      this._recL = [];
+      this._recR = [];
+      this._recFrames = 0;
+      const node = new AudioWorkletNode(rawCtx, 'poly-recorder', {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+      });
+      node.port.onmessage = (ev) => {
+        this._recL.push(ev.data.l);
+        this._recR.push(ev.data.r);
+        this._recFrames += ev.data.l.length;
+      };
+      // Tap the master into the worklet, and connect the (silent) worklet output
+      // to the destination so the processor is rendered for the whole session.
+      this.limiter.connect(node);
+      node.connect(rawCtx.destination);
+      this._recNode = node;
+      this._recording = true;
+      console.info('[rec] started (AudioWorklet) @', this._recRate, 'Hz');
+      return true;
+    } catch (e) {
+      console.error('[rec] startRecording failed', e);
+      this._recording = false;
+      this._recNode = null;
+      return false;
+    }
+  }
+
   async stopRecording() {
     if (!this._recording) return null;
     this._recording = false;
-    try { Tone.disconnect(this.limiter, this._recNode); } catch (e) {}
-    if (this._recNode) { this._recNode.onaudioprocess = null; try { this._recNode.disconnect(); } catch (e) {} }
-    if (this._recSilent) { try { this._recSilent.dispose(); } catch (e) {} }
+    try { this.limiter.disconnect(this._recNode); } catch (e) {}
+    if (this._recNode) {
+      try { this._recNode.port.onmessage = null; } catch (e) {}
+      try { this._recNode.disconnect(); } catch (e) {}
+    }
     const left = concatFloat32(this._recL || []);
     const right = concatFloat32(this._recR || []);
-    this._recL = this._recR = this._recNode = this._recSilent = null;
-    if (!left.length) return null;
+    const secs = (left.length / (this._recRate || 44100)).toFixed(1);
+    console.info(`[rec] stopped — ${left.length} samples/ch (~${secs}s)`);
+    this._recL = this._recR = this._recNode = null;
+    if (!left.length) { console.warn('[rec] no audio captured — nothing to export'); return null; }
     return encodeWavPCM16(left, right, this._recRate || 44100);
   }
 }
