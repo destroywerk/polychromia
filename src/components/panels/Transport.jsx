@@ -33,7 +33,21 @@ function Scope({ engine }) {
   return <canvas ref={canvasRef} width={206} height={34} className="w-full rounded" style={{ display: 'block', opacity: 0.6 }} />;
 }
 
-export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, engine, globalKey, onGlobalKey, onRandomise }) {
+function MiniPlay({ playing, onPlay, onPause }) {
+  return playing ? (
+    <button onClick={(e) => { e.stopPropagation(); onPause(); }} title="Pause"
+      className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(154,147,212,0.15)', border: '1px solid rgba(154,147,212,0.4)', color: '#9a93d4' }}>
+      <svg width="9" height="9" viewBox="0 0 12 12"><rect x="2" y="1" width="3" height="10" fill="currentColor" /><rect x="7" y="1" width="3" height="10" fill="currentColor" /></svg>
+    </button>
+  ) : (
+    <button onClick={(e) => { e.stopPropagation(); onPlay(); }} title="Play"
+      className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(143,186,169,0.15)', border: '1px solid rgba(143,186,169,0.4)', color: '#8fbaa9' }}>
+      <svg width="9" height="9" viewBox="0 0 12 12"><polygon points="2,1 11,6 2,11" fill="currentColor" /></svg>
+    </button>
+  );
+}
+
+export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, engine, globalKey, onGlobalKey, onRandomise, collapsed, onToggleCollapse }) {
   const bpmDrag = useRef(null);
   const onBpmDown = (e) => {
     bpmDrag.current = { y: e.clientY, v: bpm };
@@ -43,8 +57,24 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
     window.addEventListener('pointerup', up);
   };
 
+  const panelStyle = { background: 'rgba(16,16,19,0.85)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' };
+
+  if (collapsed) {
+    return (
+      <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={panelStyle}>
+        <div className="text-[9px] text-white/35 uppercase tracking-[0.18em] flex-1">Transport</div>
+        <MiniPlay playing={playing} onPlay={onPlay} onPause={onPause} />
+        <button onClick={onToggleCollapse} title="Expand" className="text-[9px] text-white/30 hover:text-white/70 leading-none" style={{ fontSize: 12 }}>⌄</button>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl p-3 space-y-3" style={{ background: 'rgba(16,16,19,0.85)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+    <div className="rounded-xl p-3 space-y-3" style={panelStyle}>
+      <div className="flex items-center justify-between">
+        <div className="text-[9px] text-white/35 uppercase tracking-[0.18em]">Transport</div>
+        <button onClick={onToggleCollapse} title="Collapse" className="text-[9px] text-white/30 hover:text-white/70 leading-none" style={{ fontSize: 12 }}>⌃</button>
+      </div>
       <Scope engine={engine} />
 
       {/* Transport buttons */}

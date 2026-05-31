@@ -42,6 +42,8 @@ export default function App() {
   const [started, setStarted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [mixerExpanded, setMixerExpanded] = useState(false);
+  const [transportCollapsed, setTransportCollapsed] = useState(false);
+  const [mixerCollapsed, setMixerCollapsed] = useState(false);
   const cascade = useRef(0);
 
   const handleStart = async () => { await graph.init(); setStarted(true); };
@@ -106,9 +108,11 @@ export default function App() {
 
         <NodePalette onAdd={handleAdd} onImportImage={handleImportImage} open={paletteOpen} />
 
-        {/* Right cluster: transport + mixer */}
-        <div className="absolute top-3 right-3 bottom-3 flex flex-col gap-3 z-20 overflow-y-auto no-select"
-          style={{ width: mixerExpanded ? 320 : 240, transition: 'width 0.18s ease' }}>
+        {/* Right cluster: transport + mixer. The column itself ignores pointer
+            events so the canvas stays draggable behind any empty space; only the
+            panels capture input. */}
+        <div className="absolute top-3 right-3 bottom-3 flex flex-col gap-3 z-20 overflow-y-auto no-select pointer-events-none [&>*]:pointer-events-auto"
+          style={{ width: (mixerExpanded && !mixerCollapsed) ? 320 : 240, transition: 'width 0.18s ease' }}>
           <Transport
             playing={graph.playing}
             onPlay={graph.play} onPause={graph.pause} onStop={graph.stop}
@@ -117,11 +121,13 @@ export default function App() {
             isRecording={graph.isRecording} onStartRec={graph.startRecording} onStopRec={graph.stopRecording}
             engine={graph.engine}
             globalKey={graph.globalKey} onGlobalKey={graph.setGlobalKey} onRandomise={graph.randomiseAll}
+            collapsed={transportCollapsed} onToggleCollapse={() => setTransportCollapsed((c) => !c)}
           />
           <Mixer
             nodes={graph.nodes} updateParam={graph.updateParam} engine={graph.engine}
             setNodeEnabled={graph.setNodeEnabled} setMute={graph.setMute} setSolo={graph.setSolo}
             expanded={mixerExpanded} onToggleExpand={() => setMixerExpanded((e) => !e)}
+            collapsed={mixerCollapsed} onToggleCollapse={() => setMixerCollapsed((c) => !c)}
           />
         </div>
 

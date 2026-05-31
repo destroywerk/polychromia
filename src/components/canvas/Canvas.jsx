@@ -35,6 +35,9 @@ export function Canvas({ graph }) {
   }, [pan]);
 
   const onWheel = useCallback((e) => {
+    // Only zoom with the modifier held; otherwise let the wheel pass through so
+    // scrollable lists inside nodes (radio stations, presets) scroll normally.
+    if (!(e.metaKey || e.ctrlKey)) return;
     e.preventDefault();
     const delta = -e.deltaY * 0.0012;
     setScale((s) => Math.max(0.4, Math.min(1.6, s + delta)));
@@ -149,7 +152,7 @@ export function Canvas({ graph }) {
 
       {/* Zoom indicator */}
       <div className="absolute bottom-3 left-3 text-[9px] text-white/20 uppercase tracking-widest no-select">
-        {Math.round(scale * 100)}% · scroll to zoom · drag bg to pan
+        {Math.round(scale * 100)}% · ⌘/Ctrl + scroll to zoom · drag bg to pan
       </div>
     </div>
   );

@@ -75,18 +75,32 @@ function MSButtons({ muted, soloed, onMute, onSolo }) {
   );
 }
 
-export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, setSolo, expanded, onToggleExpand }) {
+export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, setSolo, expanded, onToggleExpand, collapsed, onToggleCollapse }) {
   const channels = nodes.filter((n) => SOURCE_CATS.has(NODE_DEFS[n.type]?.category));
+  const panelStyle = { background: 'rgba(16,16,19,0.85)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' };
+
+  if (collapsed) {
+    return (
+      <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={panelStyle}>
+        <div className="text-[9px] text-white/35 uppercase tracking-[0.18em] flex-1">Mixer</div>
+        <span className="text-[9px] text-white/25">{channels.length}</span>
+        <button onClick={onToggleCollapse} title="Expand" className="text-[9px] text-white/30 hover:text-white/70 leading-none" style={{ fontSize: 12 }}>⌄</button>
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-xl p-3" style={{ background: 'rgba(16,16,19,0.85)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+    <div className="rounded-xl p-3" style={panelStyle}>
       <div className="flex items-center justify-between mb-2.5">
         <div className="text-[9px] text-white/35 uppercase tracking-[0.18em]">Mixer</div>
-        <button onClick={onToggleExpand} title={expanded ? 'Collapse' : 'Expand'}
-          className="text-[9px] text-white/30 hover:text-white/70 uppercase tracking-widest flex items-center gap-1">
-          {expanded ? 'collapse' : 'expand'}
-          <span style={{ fontSize: 11, lineHeight: 1 }}>{expanded ? '⤡' : '⤢'}</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button onClick={onToggleExpand} title={expanded ? 'Compact view' : 'Detailed view'}
+            className="text-[9px] text-white/30 hover:text-white/70 uppercase tracking-widest flex items-center gap-1">
+            {expanded ? 'compact' : 'detail'}
+            <span style={{ fontSize: 11, lineHeight: 1 }}>{expanded ? '⤡' : '⤢'}</span>
+          </button>
+          <button onClick={onToggleCollapse} title="Collapse" className="text-white/30 hover:text-white/70 leading-none" style={{ fontSize: 12 }}>⌃</button>
+        </div>
       </div>
 
       {channels.length === 0 ? (
