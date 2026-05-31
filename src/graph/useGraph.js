@@ -218,7 +218,8 @@ export function useGraph() {
     a.href = url;
     a.download = `polychromia-${Date.now()}.wav`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Defer revoke so large (50MB+) downloads aren't cancelled before they start.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
 
   return {

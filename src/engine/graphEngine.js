@@ -1,6 +1,51 @@
 import * as Tone from 'tone';
 import { NODE_DEFS } from './nodeDefs';
 
+// ── PCM WAV export helpers ───────────────────────────────────────────────
+// Tone.Recorder / MediaRecorder only emit a COMPRESSED container (webm/opus),
+// which is not a valid .wav. To produce a real, playable PCM WAV we capture the
+// master output as Float32 PCM live and encode a 16-bit RIFF/WAVE file in JS.
+function concatFloat32(chunks) {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Float32Array(total);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out;
+}
+
+function encodeWavPCM16(left, right, sampleRate) {
+  const numChannels = 2;
+  const numFrames = Math.min(left.length, right.length);
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numFrames * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);     // RIFF chunk size
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);                // fmt chunk size (PCM)
+  view.setUint16(20, 1, true);                 // audio format = PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); // byte rate
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);                // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    let l = Math.max(-1, Math.min(1, left[i]));
+    let r = Math.max(-1, Math.min(1, right[i]));
+    view.setInt16(offset, l < 0 ? l * 0x8000 : l * 0x7fff, true); offset += 2;
+    view.setInt16(offset, r < 0 ? r * 0x8000 : r * 0x7fff, true); offset += 2;
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
 class GraphEngine {
   constructor() {
     this.handles = new Map();      // nodeId -> handle
@@ -24,9 +69,6 @@ class GraphEngine {
     this.limiter.connect(this.analyser);
     this.masterMeter = new Tone.Meter();
     this.limiter.connect(this.masterMeter);
-
-    this.masterRecorder = new Tone.Recorder();
-    this.limiter.connect(this.masterRecorder);
 
     Tone.getTransport().bpm.value = 70;
     // Transport runs by default so dropping in a source is immediately audible.
@@ -219,17 +261,43 @@ class GraphEngine {
     return -Infinity;
   }
 
-  // ── Master recording / export ──────────────────────────
+  // ── Master recording / export (true PCM WAV) ───────────
   async startRecording() {
     if (!this.initialized || this._recording) return;
-    this.masterRecorder.start();
+    const ctx = Tone.getContext().rawContext;
+    this._recRate = ctx.sampleRate;
+    this._recL = [];
+    this._recR = [];
+    // ScriptProcessor taps the master as Float32 PCM. Deprecated but works in
+    // every current browser and is the simplest reliable live PCM capture.
+    const node = ctx.createScriptProcessor(4096, 2, 2);
+    node.onaudioprocess = (e) => {
+      const ib = e.inputBuffer;
+      const l = ib.getChannelData(0);
+      const r = ib.numberOfChannels > 1 ? ib.getChannelData(1) : l;
+      this._recL.push(new Float32Array(l));
+      this._recR.push(new Float32Array(r));
+    };
+    // Pull the node by routing it to a silent sink so onaudioprocess fires
+    // without adding the (silent) output back to the speakers audibly.
+    const silent = new Tone.Gain(0).toDestination();
+    Tone.connect(this.limiter, node);
+    node.connect(silent.input);
+    this._recNode = node;
+    this._recSilent = silent;
     this._recording = true;
   }
   async stopRecording() {
     if (!this._recording) return null;
-    const blob = await this.masterRecorder.stop();
     this._recording = false;
-    return blob;
+    try { Tone.disconnect(this.limiter, this._recNode); } catch (e) {}
+    if (this._recNode) { this._recNode.onaudioprocess = null; try { this._recNode.disconnect(); } catch (e) {} }
+    if (this._recSilent) { try { this._recSilent.dispose(); } catch (e) {} }
+    const left = concatFloat32(this._recL || []);
+    const right = concatFloat32(this._recR || []);
+    this._recL = this._recR = this._recNode = this._recSilent = null;
+    if (!left.length) return null;
+    return encodeWavPCM16(left, right, this._recRate || 44100);
   }
 }
 
