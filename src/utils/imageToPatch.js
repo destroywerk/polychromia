@@ -129,8 +129,83 @@ function chordForMood(avgSat) {
   return 'sus2';
 }
 
+// Fallback rotation through the generator family, used only to guarantee
+// variety if a photo's regions would otherwise all collapse to one type.
+const TYPE_ROTATION = ['drift', 'grain', 'oscillator', 'noise'];
+
+// Pick a generator type from a region's texture + colour character:
+//   • hazy / desaturated       → Noise Bed
+//   • vivid, saturated colour   → Oscillator (defined tonal voice)
+//   • very smooth / low edge     → Drift Pad (lush evolving chord)
+//   • textured / grainy          → Grain Cloud
+//   • mid case                   → Drift (lighter) or Oscillator (darker)
+function pickType({ s, l, edge }) {
+  if (s < 0.18) return 'noise';
+  if (s > 0.55) return 'oscillator';
+  if (edge < 0.18) return 'drift';
+  if (edge >= 0.30) return 'grain';
+  return l > 0.5 ? 'drift' : 'oscillator';
+}
+
+// Build a node-param descriptor containing ONLY the keys valid for `type`
+// (matching each source's defaults in nodeDefs.js), tailored from the region's
+// colour/shape features. Long, lush envelopes are kept wherever supported.
+function buildDescriptor(type, f, sharedChord) {
+  const { hue, s, l, coverage, edge, warm, centroidX } = f;
+  const root = NOTES[Math.round((hue / 360) * 12) % 12];
+  const baseOct = clamp(Math.round(3 - warm * 2 + (l - 0.5) * 1.4), 1, 4);
+  const level = clamp(0.2 + l * 0.3 + coverage * 0.2, 0.16, 0.55);
+  const pan = clamp(centroidX * 2 - 1, -1, 1);
+  const attack = clamp(2 + warm * 3 + coverage * 3, 1.5, 8);
+  const release = clamp(4 + coverage * 6 + warm * 3, 3, 14);
+
+  switch (type) {
+    case 'drift':
+      // width (chorus depth) ← saturation; drift (chorus rate) ← edge energy.
+      return {
+        type, root, octave: clamp(baseOct - 1, 1, 3), chord: sharedChord,
+        spread: clamp(0.3 + s * 0.6, 0.2, 0.95),
+        motion: clamp(0.05 + edge * 0.5, 0.03, 0.6),
+        level, pan,
+        attack: clamp(attack + 1, 2, 9), release: clamp(release + 2, 4, 16),
+      };
+    case 'grain':
+      // density / pitch-drift / shimmer ← edge energy + saturation.
+      return {
+        type, root, octave: clamp(baseOct, 2, 4), chord: sharedChord,
+        density: clamp(Math.round(3 + edge * 5), 2, 8),
+        drift: Math.round(clamp(6 + edge * 30 + s * 10, 4, 45)),
+        shimmer: clamp(0.2 + edge * 0.6, 0.1, 0.9),
+        level, pan, attack, release,
+      };
+    case 'noise': {
+      // color ← hue warmth (warm→brown, mid→pink, cool→white);
+      // cutoff ← brightness; motion ← edge energy.
+      const color = warm > 0.62 ? 'brown' : (warm < 0.38 ? 'white' : 'pink');
+      return {
+        type, color,
+        cutoff: Math.round(clamp(200 + l * 3200 + (1 - warm) * 1400, 200, 6000)),
+        q: clamp(0.6 + s * 3, 0.4, 5),
+        motion: clamp(0.03 + edge * 0.5, 0.02, 0.6),
+        level: clamp(level * 0.9, 0.14, 0.5), pan,
+        attack: clamp(attack + 1, 2, 9), release: clamp(release + 1, 3, 14),
+      };
+    }
+    case 'oscillator':
+    default:
+      // defined tonal voice; soft wave ← edge energy, detune ← saturation.
+      return {
+        type: 'oscillator', wave: waveForEdge(edge, s), root, octave: baseOct,
+        chord: sharedChord, level, pan, attack, release,
+        detune: Math.round((s * 2 - 1) * 18),
+      };
+  }
+}
+
 /**
- * Analyse an image and return an array of oscillator voice descriptors.
+ * Analyse an image and return an array of typed voice descriptors. Each has a
+ * `type` ('grain' | 'drift' | 'noise' | 'oscillator') plus only the params
+ * valid for that source type.
  * @param {File|Blob|HTMLImageElement|string} source
  * @param {{ maxVoices?: number }} [opts]
  * @returns {Promise<Array<object>>}
@@ -170,45 +245,34 @@ export async function imageToPatch(source, opts = {}) {
   const dominant = sorted.filter((bk) => bk.n / pxCount >= 0.03).slice(0, maxVoices);
   const chosen = dominant.length >= 3 ? dominant : sorted.slice(0, Math.min(maxVoices, sorted.length));
 
-  const voices = chosen.map((bk) => {
+  // ── Per-region feature extraction (deterministic) ──
+  const feats = chosen.map((bk) => {
     const r = bk.r / bk.n, g = bk.g / bk.n, b = bk.b / bk.n;
     const { h: hue, s, l } = rgbToHsl(r, g, b);
-    const coverage = bk.n / pxCount;            // 0..1
-    const edgeEnergy = bk.edge / bk.n;          // 0..1 (avg over bucket pixels)
-    const centroidX = bk.xs / bk.n / w;         // 0..1 left→right
-
-    // Hue → root note.
-    const root = NOTES[Math.round((hue / 360) * 12) % 12];
-
-    // Warmth: 1 = warm (red), 0 = cool (cyan). Drives octave + attack.
-    const warm = (Math.cos((hue * Math.PI) / 180) + 1) / 2;
-
-    // Octave: warm/dark → lower; cool/bright → higher. Kept low for drones.
-    const octave = clamp(Math.round(3 - warm * 2 + (l - 0.5) * 1.4), 1, 4);
-
-    // Level: gentle so a multi-voice drone breathes rather than clips.
-    const level = clamp(0.2 + l * 0.3 + coverage * 0.2, 0.16, 0.55);
-
-    // Pan from horizontal centroid (widened later across the voice set).
-    const pan = clamp(centroidX * 2 - 1, -1, 1);
-
-    // Detune from saturation (richer colour → more chorused/detuned voice).
-    const detune = Math.round((s * 2 - 1) * 18);
-
-    // Long, lush envelopes: everything swells in slowly and decays for ages.
-    const attack = clamp(2 + warm * 3 + coverage * 3, 1.5, 8);
-    const release = clamp(4 + coverage * 6 + warm * 3, 3, 14);
-
-    const wave = waveForEdge(edgeEnergy, s);
-
-    return { wave, root, octave, chord: sharedChord, level, pan, attack, release, detune };
+    return {
+      hue, s, l,
+      coverage: bk.n / pxCount,          // 0..1
+      edge: bk.edge / bk.n,              // 0..1 avg edge energy over the bucket
+      centroidX: bk.xs / bk.n / w,       // 0..1 left→right
+      warm: (Math.cos((hue * Math.PI) / 180) + 1) / 2,  // 1 warm (red) … 0 cool (cyan)
+    };
   });
 
-  // Order low→high octave so the spawn cascade reads bass→treble.
-  voices.sort((a, b) => a.octave - b.octave);
+  // Choose a generator type per region from its texture/colour character.
+  let types = feats.map(pickType);
+  // Guarantee variety: if the photo collapses everything to a single type,
+  // rotate through the generator family by index (still deterministic).
+  if (new Set(types).size === 1 && types.length >= 3) {
+    types = types.map((_, i) => TYPE_ROTATION[i % TYPE_ROTATION.length]);
+  }
 
-  // Widen the stereo field: spread voices across the panorama by index, blended
-  // with their colour-derived pan, for an enveloping wash.
+  const voices = feats.map((f, i) => buildDescriptor(types[i], f, sharedChord));
+
+  // Order low→high (octave for tonal types; noise has none → treat as mid) so
+  // the spawn cascade reads bass→treble.
+  voices.sort((a, b) => (a.octave ?? 3) - (b.octave ?? 3));
+
+  // Widen the stereo field across the voice set for an enveloping wash.
   const n = voices.length;
   voices.forEach((v, i) => {
     const spread = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;

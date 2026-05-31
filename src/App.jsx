@@ -70,15 +70,18 @@ export default function App() {
       graph.updateParam(reverbId, 'decay', 7);
       graph.updateParam(reverbId, 'wet', 0.5);
     }
-    // Spread voices across the canvas in a non-overlapping grid (osc width ~210).
+    // Spread voices across the canvas in a non-overlapping grid (node width ~210).
+    // Each voice is a typed generator (grain / drift / noise / oscillator) chosen
+    // from the image; spawn that type and apply only its valid params.
     voices.forEach((v, i) => {
       const col = i % 3;
       const rown = Math.floor(i / 3);
       const x = 300 + col * 250;
       const y = 110 + rown * 220 + col * 24;
-      const id = graph.addNode('oscillator', x, y);
+      const { type, ...params } = v;
+      const id = graph.addNode(type, x, y);
       if (!id) return;
-      Object.entries(v).forEach(([key, val]) => graph.updateParam(id, key, val));
+      Object.entries(params).forEach(([key, val]) => graph.updateParam(id, key, val));
       if (reverbId) graph.addConnection({ node: id, port: 'out', kind: 'audio' }, { node: reverbId, port: 'in', kind: 'audio' });
     });
   }, [graph]);
