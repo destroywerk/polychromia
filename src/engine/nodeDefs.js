@@ -89,7 +89,7 @@ export const NODE_DEFS = {
     label: 'Drift Pad',
     category: 'source',
     accent: ACCENT.source,
-    width: 215,
+    width: 286,
     inputs: [{ id: 'level', kind: 'mod' }],
     outputs: [{ id: 'out', kind: 'audio' }],
     defaults: { root: 'C', octave: 2, chord: 'maj7', spread: 0.6, motion: 0.18, level: 0.5, pan: 0, attack: 4, release: 6, enabled: true },
@@ -674,6 +674,154 @@ export const NODE_DEFS = {
       };
     },
   },
+
+  stutter: {
+    label: 'Stutter',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 200,
+    inputs: [{ id: 'in', kind: 'audio' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { rate: '8n', depth: 0.9, mix: 0.7 },
+    create(ctx, p) {
+      // Rhythmic gate: a transport-locked loop chops the wet signal on/off at a
+      // selectable division. depth sets how far the gate closes; mix blends dry.
+      const inGain = new Tone.Gain(1);
+      const gate = new Tone.Gain(1);
+      const wet = new Tone.Gain(p.mix);
+      const dry = new Tone.Gain(1 - p.mix);
+      const out = new Tone.Gain(1);
+      inGain.connect(dry); dry.connect(out);
+      inGain.connect(gate); gate.connect(wet); wet.connect(out);
+      const state = { ...p };
+      let loop = null;
+      const buildLoop = () => {
+        if (loop) { try { loop.stop(); loop.dispose(); } catch (e) {} }
+        loop = new Tone.Loop((time) => {
+          const interval = Tone.Time(state.rate).toSeconds();
+          const g = gate.gain;
+          g.cancelScheduledValues(time);
+          g.setValueAtTime(1, time);
+          g.setValueAtTime(Math.max(0, 1 - state.depth), time + interval * 0.5);
+        }, state.rate).start(0);
+      };
+      buildLoop();
+      return {
+        audioIn: inGain, audioOut: out, modOut: null, modIns: {}, isSource: false,
+        play() {}, stop() {},
+        setTransport(on) { if (!on) { try { gate.gain.cancelScheduledValues(Tone.now()); } catch (e) {} gate.gain.value = 1; } },
+        update(key, val) {
+          state[key] = val;
+          if (key === 'rate') buildLoop();
+          else if (key === 'mix') { wet.gain.rampTo(val, 0.1); dry.gain.rampTo(1 - val, 0.1); }
+          // depth is read live inside the loop callback
+        },
+        dispose() { if (loop) { try { loop.stop(); loop.dispose(); } catch (e) {} } [inGain, gate, wet, dry, out].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
+
+  pixelate: {
+    label: 'Pixelate',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 200,
+    inputs: [{ id: 'in', kind: 'audio' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { bits: 4, rate: 4000, mix: 0.6 },
+    create(ctx, p) {
+      // Bitcrush (bit-depth reduction) + a lowpass that emulates sample-rate
+      // downsampling for a lo-fi, "pixelated" texture.
+      const inGain = new Tone.Gain(1);
+      const crush = new Tone.BitCrusher(p.bits);
+      const lp = new Tone.Filter(p.rate, 'lowpass');
+      const wet = new Tone.Gain(p.mix);
+      const dry = new Tone.Gain(1 - p.mix);
+      const out = new Tone.Gain(1);
+      inGain.connect(dry); dry.connect(out);
+      inGain.connect(crush); crush.connect(lp); lp.connect(wet); wet.connect(out);
+      const state = { ...p };
+      return {
+        audioIn: inGain, audioOut: out, modOut: null, modIns: {}, isSource: false,
+        play() {}, stop() {}, setTransport() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'bits') { try { crush.bits.value = val; } catch (e) { try { crush.bits = val; } catch (e2) {} } }
+          else if (key === 'rate') lp.frequency.rampTo(val, 0.1);
+          else if (key === 'mix') { wet.gain.rampTo(val, 0.1); dry.gain.rampTo(1 - val, 0.1); }
+        },
+        dispose() { [inGain, crush, lp, wet, dry, out].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
+
+  timestretch: {
+    label: 'Timestretch',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 214,
+    inputs: [{ id: 'in', kind: 'audio' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { pitch: 0, window: 0.1, feedback: 0.4, mix: 0.6 },
+    create(ctx, p) {
+      // Granular pitch/time smear via PitchShift; window + feedback create the
+      // characteristic stretched, blurred tail.
+      const inGain = new Tone.Gain(1);
+      const ps = new Tone.PitchShift({ pitch: p.pitch, windowSize: p.window, feedback: p.feedback, wet: 1 });
+      const wet = new Tone.Gain(p.mix);
+      const dry = new Tone.Gain(1 - p.mix);
+      const out = new Tone.Gain(1);
+      inGain.connect(dry); dry.connect(out);
+      inGain.connect(ps); ps.connect(wet); wet.connect(out);
+      const state = { ...p };
+      return {
+        audioIn: inGain, audioOut: out, modOut: null, modIns: {}, isSource: false,
+        play() {}, stop() {}, setTransport() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'pitch') ps.pitch = val;
+          else if (key === 'window') ps.windowSize = val;
+          else if (key === 'feedback') { try { ps.feedback.rampTo(val, 0.1); } catch (e) { try { ps.feedback.value = val; } catch (e2) {} } }
+          else if (key === 'mix') { wet.gain.rampTo(val, 0.1); dry.gain.rampTo(1 - val, 0.1); }
+        },
+        dispose() { [inGain, ps, wet, dry, out].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
+
+  freeze: {
+    label: 'Freeze',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 200,
+    inputs: [{ id: 'in', kind: 'audio' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { hold: 0.9, tone: 2200, mix: 0.6 },
+    create(ctx, p) {
+      // Spectral-hold-style smear: a very short, very high-feedback delay sustains
+      // and blurs the incoming sound into a frozen wash; tone shapes its colour.
+      const inGain = new Tone.Gain(1);
+      const delay = new Tone.FeedbackDelay({ delayTime: 0.12, feedback: Math.min(0.98, p.hold), wet: 1 });
+      const lp = new Tone.Filter(p.tone, 'lowpass');
+      const wet = new Tone.Gain(p.mix);
+      const dry = new Tone.Gain(1 - p.mix);
+      const out = new Tone.Gain(1);
+      inGain.connect(dry); dry.connect(out);
+      inGain.connect(delay); delay.connect(lp); lp.connect(wet); wet.connect(out);
+      const state = { ...p };
+      return {
+        audioIn: inGain, audioOut: out, modOut: null, modIns: {}, isSource: false,
+        play() {}, stop() {}, setTransport() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'hold') delay.feedback.rampTo(Math.min(0.98, val), 0.1);
+          else if (key === 'tone') lp.frequency.rampTo(val, 0.1);
+          else if (key === 'mix') { wet.gain.rampTo(val, 0.1); dry.gain.rampTo(1 - val, 0.1); }
+        },
+        dispose() { [inGain, delay, lp, wet, dry, out].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
 };
 
 export const NODE_CATEGORIES = [
@@ -682,7 +830,7 @@ export const NODE_CATEGORIES = [
   { id: 'stream', label: 'Streams', types: ['stream'] },
   { id: 'looper', label: 'Loopers', types: ['looper'] },
   { id: 'mod', label: 'Modulation', types: ['lfo'] },
-  { id: 'effect', label: 'Effects', types: ['filter', 'delay', 'reverb', 'eq', 'warp'] },
+  { id: 'effect', label: 'Effects', types: ['filter', 'delay', 'reverb', 'eq', 'warp', 'stutter', 'pixelate', 'timestretch', 'freeze'] },
 ];
 
 export { ACCENT };

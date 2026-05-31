@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { NodeShell } from './NodeShell';
 import { portAnchor } from './layout';
 import { NODE_DEFS } from '../../engine/nodeDefs';
@@ -8,10 +8,16 @@ function cablePath(x1, y1, x2, y2) {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
-export function Canvas({ graph }) {
+export function Canvas({ graph, viewportRef }) {
   const ref = useRef(null);
   const [pan, setPan] = useState({ x: 80, y: 40 });
   const [scale, setScale] = useState(1);
+
+  // Mirror the live pan/scale into a ref the App can read so newly-added nodes
+  // can be spawned inside the currently visible region.
+  useEffect(() => {
+    if (viewportRef) viewportRef.current = { pan, scale };
+  }, [pan, scale, viewportRef]);
   const [selected, setSelected] = useState(null);
   const [pending, setPending] = useState(null); // {node, side, port, mouse:{x,y}}
   const pendingRef = useRef(null);

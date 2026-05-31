@@ -49,6 +49,14 @@ function randomParams(type, key) {
       return { low: Math.round(rand(-6, 6)), mid: Math.round(rand(-6, 4)), high: Math.round(rand(-6, 6)) };
     case 'warp':
       return { pitch: randInt(-7, 7), depth: r2(rand(0.2, 0.7)), mix: r2(rand(0.2, 0.6)) };
+    case 'stutter':
+      return { rate: pick(['16n', '8t', '8n', '4n']), depth: r2(rand(0.5, 1)), mix: r2(rand(0.3, 0.8)) };
+    case 'pixelate':
+      return { bits: randInt(2, 7), rate: Math.round(rand(1200, 8000)), mix: r2(rand(0.3, 0.7)) };
+    case 'timestretch':
+      return { pitch: randInt(-7, 7), window: r2(rand(0.05, 0.3)), feedback: r2(rand(0.2, 0.7)), mix: r2(rand(0.3, 0.7)) };
+    case 'freeze':
+      return { hold: r2(rand(0.7, 0.97)), tone: Math.round(rand(800, 5000)), mix: r2(rand(0.3, 0.7)) };
     default:
       return {};
   }
@@ -128,6 +136,13 @@ export function useGraph() {
 
   const canConnect = useCallback((from, to) => graphEngine.canConnect(from, to), []);
 
+  // ── Clear everything: dispose all handles, empty the graph + mixer ──
+  const clearAll = useCallback(() => {
+    graphEngine.clearAll();
+    setNodes([]);
+    setConnections([]);
+  }, []);
+
   // ── Global key: retune every source live without dropping the drone ──
   const setGlobalKey = useCallback((next) => {
     globalKeyRef.current = next;
@@ -186,6 +201,7 @@ export function useGraph() {
     nodes, connections,
     addNode, removeNode, moveNode, updateParam, setNodeEnabled, setMute, setSolo,
     addConnection, removeConnection, canConnect,
+    clearAll,
     globalKey, setGlobalKey, randomiseAll,
     playing, play, pause, stop,
     bpm, setBpm,

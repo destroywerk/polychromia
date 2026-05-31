@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Stepper } from '../ui/Controls';
 import { NOTES } from '../../engine/theory';
 
@@ -47,8 +47,9 @@ function MiniPlay({ playing, onPlay, onPause }) {
   );
 }
 
-export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, engine, globalKey, onGlobalKey, onRandomise, collapsed, onToggleCollapse }) {
+export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, engine, globalKey, onGlobalKey, onRandomise, onClear, collapsed, onToggleCollapse }) {
   const bpmDrag = useRef(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const onBpmDown = (e) => {
     bpmDrag.current = { y: e.clientY, v: bpm };
     const move = (ev) => { const d = bpmDrag.current.y - ev.clientY; onBpm(Math.max(20, Math.min(200, Math.round(bpmDrag.current.v + d * 0.5)))); };
@@ -120,11 +121,22 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
           </div>
         </div>
       )}
-      {onRandomise && (
-        <button onClick={onRandomise} className="w-full py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] transition-all hover:opacity-90"
-          style={{ background: 'rgba(154,147,212,0.1)', border: '1px solid rgba(154,147,212,0.35)', color: '#9a93d4' }}>
-          ⤨ Randomise All
-        </button>
+      {(onRandomise || onClear) && (
+        <div className="flex items-center gap-2">
+          {onRandomise && (
+            <button onClick={onRandomise} className="flex-1 py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] transition-all hover:opacity-90"
+              style={{ background: 'rgba(154,147,212,0.1)', border: '1px solid rgba(154,147,212,0.35)', color: '#9a93d4' }}>
+              ⤨ Randomise
+            </button>
+          )}
+          {onClear && (
+            <button onClick={() => setConfirmClear(true)} title="Delete all nodes"
+              className="py-2 px-3 rounded-lg text-[10px] uppercase tracking-[0.15em] transition-all hover:opacity-90"
+              style={{ background: 'rgba(217,122,106,0.08)', border: '1px solid rgba(217,122,106,0.35)', color: '#d97a6a' }}>
+              ⌫ Clear
+            </button>
+          )}
+        </div>
       )}
 
       {/* Record */}
@@ -138,6 +150,27 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
           style={{ background: 'rgba(217,122,106,0.06)', border: '1px solid rgba(217,122,106,0.25)', color: 'rgba(217,122,106,0.8)' }}>
           ● Record Mix
         </button>
+      )}
+
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmClear(false)}
+          style={{ background: 'rgba(8,8,10,0.6)', backdropFilter: 'blur(5px)' }}>
+          <div onClick={(e) => e.stopPropagation()} className="rounded-2xl p-5 w-72"
+            style={{ background: 'rgba(16,16,19,0.97)', border: '1px solid rgba(217,122,106,0.3)', boxShadow: '0 24px 60px rgba(0,0,0,0.55)' }}>
+            <div className="font-cal text-sm text-white/90 mb-1">Delete all nodes?</div>
+            <div className="text-[11px] text-white/40 leading-snug mb-4">This can't be undone.</div>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmClear(false)} className="flex-1 py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] transition-all hover:opacity-90"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+                Cancel
+              </button>
+              <button onClick={() => { onClear?.(); setConfirmClear(false); }} className="flex-1 py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] transition-all hover:opacity-90"
+                style={{ background: 'rgba(217,122,106,0.18)', border: '1px solid rgba(217,122,106,0.55)', color: '#d97a6a' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

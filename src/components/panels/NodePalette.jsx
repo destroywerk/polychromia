@@ -5,6 +5,7 @@ const ICONS = {
   oscillator: '∿', drift: '◍', grain: '∷', noise: '▒',
   noteCycler: '↻', progression: '⊞', stream: '◈',
   looper: '⊚', lfo: '〜', filter: '⏚', delay: '⋯', reverb: '◌', eq: '▤', warp: '✦',
+  stutter: '⊟', pixelate: '▦', timestretch: '⟿', freeze: '❄',
 };
 
 const IMPORT_ACCENT = '#8fbaa9'; // sage — matches the source palette
@@ -34,16 +35,16 @@ export function NodePalette({ onAdd, onImportImage, open }) {
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
           <button
             onClick={() => fileRef.current && fileRef.current.click()}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all group"
+            className="w-full flex items-center gap-2.5 px-2.5 py-4 rounded-lg transition-all group"
             style={{ background: `${IMPORT_ACCENT}0d`, border: `1px solid ${IMPORT_ACCENT}33` }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${IMPORT_ACCENT}66`; e.currentTarget.style.background = `${IMPORT_ACCENT}18`; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${IMPORT_ACCENT}33`; e.currentTarget.style.background = `${IMPORT_ACCENT}0d`; }}
           >
-            <span className="text-sm w-4 text-center" style={{ color: IMPORT_ACCENT }}>◳</span>
-            <span className="font-cal text-[11px] text-white/75 group-hover:text-white/95">Import Image</span>
-            <span className="ml-auto text-white/15 group-hover:text-white/40 text-xs">↑</span>
+            <span className="text-base w-4 text-center" style={{ color: IMPORT_ACCENT }}>◳</span>
+            <span className="font-cal text-[12px] text-white/85 group-hover:text-white">Import Image</span>
+            <span className="ml-auto text-white/25 group-hover:text-white/50 text-xs">↑</span>
           </button>
-          <div className="text-[8px] text-white/25 mt-1 leading-snug">Turns a photo's colours &amp; shapes into a drone of oscillators.</div>
+          <div className="text-[10px] text-white/55 mt-1.5 leading-snug">Turns a photo's colours &amp; shapes into a lush drone of generators.</div>
         </div>
       )}
 

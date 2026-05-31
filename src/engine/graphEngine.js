@@ -89,6 +89,22 @@ class GraphEngine {
     if (h) h.update(key, value);
   }
 
+  // Remove every node + connection and dispose all handles so no orphaned
+  // voices keep sounding. Resets mute/solo state and empties the graph.
+  clearAll() {
+    for (const [, h] of this.handles) {
+      try { h.stop?.(); } catch (e) {}
+      if (h._meter) { try { h._meter.dispose(); } catch (e) {} }
+      const mg = h._mixGain;
+      try { h.dispose(); } catch (e) {}
+      try { mg?.dispose(); } catch (e) {}
+    }
+    this.handles.clear();
+    this.connections.clear();
+    this.muted.clear();
+    this.soloed.clear();
+  }
+
   getHandle(id) { return this.handles.get(id); }
 
   // ── Connections ────────────────────────────────────────

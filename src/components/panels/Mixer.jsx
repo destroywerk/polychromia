@@ -29,6 +29,17 @@ function VU({ engine, nodeId, accent, tall }) {
   );
 }
 
+const TRACK_BG = '#2c2c34';
+// Volume fill: accent from the left up to the value.
+const fillBg = (pct, accent) =>
+  `linear-gradient(to right, ${accent} 0%, ${accent} ${pct}%, ${TRACK_BG} ${pct}%, ${TRACK_BG} 100%) center / 100% 4px no-repeat`;
+// Pan fill: accent segment between centre (50%) and the thumb.
+const panBg = (pan, accent) => {
+  const v = ((Math.max(-1, Math.min(1, pan ?? 0)) + 1) / 2) * 100;
+  const lo = Math.min(50, v), hi = Math.max(50, v);
+  return `linear-gradient(to right, ${TRACK_BG} 0%, ${TRACK_BG} ${lo}%, ${accent} ${lo}%, ${accent} ${hi}%, ${TRACK_BG} ${hi}%, ${TRACK_BG} 100%) center / 100% 4px no-repeat`;
+};
+
 const fDb = (lvl) => (lvl > 0.0001 ? `${(20 * Math.log10(lvl)).toFixed(1)} dB` : '-∞ dB');
 const panLabel = (v) => {
   const p = v ?? 0;
@@ -127,12 +138,12 @@ export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, set
                   <VU engine={engine} nodeId={n.id} accent={a} />
                   <input type="range" min={0} max={1} step={0.01} value={level}
                     onChange={(e) => updateParam(n.id, 'level', parseFloat(e.target.value))}
-                    className="w-full" style={{ accentColor: a }} />
+                    className="w-full mix-range" style={{ background: fillBg(level * 100, a) }} />
                   <div className="flex items-center gap-2">
                     <span className="text-[7px] text-white/25 uppercase tracking-wider">L</span>
                     <input type="range" min={-1} max={1} step={0.01} value={n.params.pan ?? 0}
                       onChange={(e) => updateParam(n.id, 'pan', parseFloat(e.target.value))}
-                      className="flex-1" style={{ accentColor: a }} />
+                      className="flex-1 mix-range" style={{ background: panBg(n.params.pan, a) }} />
                     <span className="text-[7px] text-white/25 uppercase tracking-wider">R</span>
                   </div>
                 </div>
@@ -160,7 +171,7 @@ export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, set
                   </div>
                   <input type="range" min={0} max={1} step={0.01} value={level}
                     onChange={(e) => updateParam(n.id, 'level', parseFloat(e.target.value))}
-                    className="w-full" style={{ accentColor: a }} />
+                    className="w-full mix-range" style={{ background: fillBg(level * 100, a) }} />
                 </div>
 
                 <div className="space-y-1">
@@ -170,7 +181,7 @@ export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, set
                   </div>
                   <input type="range" min={-1} max={1} step={0.01} value={n.params.pan ?? 0}
                     onChange={(e) => updateParam(n.id, 'pan', parseFloat(e.target.value))}
-                    className="w-full" style={{ accentColor: a }} />
+                    className="w-full mix-range" style={{ background: panBg(n.params.pan, a) }} />
                 </div>
               </div>
             );

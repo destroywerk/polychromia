@@ -45,15 +45,31 @@ export default function App() {
   const [transportCollapsed, setTransportCollapsed] = useState(false);
   const [mixerCollapsed, setMixerCollapsed] = useState(false);
   const cascade = useRef(0);
+  const viewportRef = useRef({ pan: { x: 80, y: 40 }, scale: 1 });
 
   const handleStart = async () => { await graph.init(); setStarted(true); };
 
-  const handleAdd = useCallback((type) => {
+  // World-space point at (roughly) the centre of the visible canvas, excluding
+  // the left palette and the right control column, accounting for pan + zoom.
+  // Returns the top-left for a node so the node body lands centred on the point,
+  // with a small cascade so consecutive adds don't perfectly overlap.
+  const spawnPoint = useCallback(() => {
+    const { pan, scale } = viewportRef.current;
+    const leftOcc = paletteOpen ? 224 : 24;
+    const rightOcc = ((mixerExpanded && !mixerCollapsed) ? 320 : 240) + 24;
+    const cx = (leftOcc + (window.innerWidth - rightOcc)) / 2;
+    const cy = Math.max(140, window.innerHeight * 0.42);
     const i = cascade.current++;
-    const x = 150 + (i % 4) * 248;
-    const y = 80 + Math.floor(i / 4) * 250 + (i % 4) * 26;
+    const jitter = (i % 6) * 26;
+    const wx = (cx - pan.x) / scale + jitter;
+    const wy = (cy - pan.y) / scale + jitter;
+    return { x: Math.round(wx - 110), y: Math.round(wy - 70) };
+  }, [paletteOpen, mixerExpanded, mixerCollapsed]);
+
+  const handleAdd = useCallback((type) => {
+    const { x, y } = spawnPoint();
     graph.addNode(type, x, y);
-  }, [graph]);
+  }, [graph, spawnPoint]);
 
   // Photo → Patch: analyse an uploaded image and spawn a series of oscillator
   // voices whose params are derived from its colours & shapes. The new nodes
@@ -65,9 +81,11 @@ export default function App() {
     try { voices = await imageToPatch(file, { maxVoices: 5 }); }
     catch (e) { console.warn('image import failed', e); return; }
     if (!voices.length) return;
+    // Anchor the import inside the currently visible region.
+    const origin = spawnPoint();
     // Spawn a shared reverb to glue the imported voices into one cohesive,
-    // evolving wash, then fan every voice into it.
-    const reverbId = graph.addNode('reverb', 320 + 3 * 250, 160);
+    // evolving wash, then fan every voice into it. Place it to the right of grid.
+    const reverbId = graph.addNode('reverb', origin.x + 3 * 250, origin.y + 60);
     if (reverbId) {
       graph.updateParam(reverbId, 'decay', 7);
       graph.updateParam(reverbId, 'wet', 0.5);
@@ -78,22 +96,22 @@ export default function App() {
     voices.forEach((v, i) => {
       const col = i % 3;
       const rown = Math.floor(i / 3);
-      const x = 300 + col * 250;
-      const y = 110 + rown * 220 + col * 24;
+      const x = origin.x + col * 250;
+      const y = origin.y + rown * 220 + col * 24;
       const { type, ...params } = v;
       const id = graph.addNode(type, x, y);
       if (!id) return;
       Object.entries(params).forEach(([key, val]) => graph.updateParam(id, key, val));
       if (reverbId) graph.addConnection({ node: id, port: 'out', kind: 'audio' }, { node: reverbId, port: 'in', kind: 'audio' });
     });
-  }, [graph]);
+  }, [graph, spawnPoint]);
 
   return (
     <>
       {!started && <StartOverlay onStart={handleStart} />}
 
       <div className="fixed inset-0">
-        <Canvas graph={graph} />
+        <Canvas graph={graph} viewportRef={viewportRef} />
 
         {/* Palette toggle */}
         <button onClick={() => setPaletteOpen((o) => !o)}
@@ -120,7 +138,7 @@ export default function App() {
             masterVolume={graph.masterVolume} onMasterVolume={graph.setMasterVolume}
             isRecording={graph.isRecording} onStartRec={graph.startRecording} onStopRec={graph.stopRecording}
             engine={graph.engine}
-            globalKey={graph.globalKey} onGlobalKey={graph.setGlobalKey} onRandomise={graph.randomiseAll}
+            globalKey={graph.globalKey} onGlobalKey={graph.setGlobalKey} onRandomise={graph.randomiseAll} onClear={graph.clearAll}
             collapsed={transportCollapsed} onToggleCollapse={() => setTransportCollapsed((c) => !c)}
           />
           <Mixer

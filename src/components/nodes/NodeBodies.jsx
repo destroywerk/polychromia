@@ -168,6 +168,48 @@ export function NodeBody({ node, def, update, handle }) {
         </KnobRow>
       );
 
+    case 'stutter':
+      return (
+        <div className="space-y-2">
+          <Row>
+            <span className="text-[8px] text-white/35 uppercase tracking-[0.12em]">rate</span>
+            <Stepper value={p.rate} onChange={(v) => update('rate', v)} options={DIVISIONS} accent={a} />
+          </Row>
+          <KnobRow>
+            <Knob value={p.depth} min={0} max={1} onChange={(v) => update('depth', v)} label="depth" accent={a} format={fPct} />
+            <Knob value={p.mix} min={0} max={1} onChange={(v) => update('mix', v)} label="mix" accent={a} format={fPct} />
+          </KnobRow>
+        </div>
+      );
+
+    case 'pixelate':
+      return (
+        <KnobRow>
+          <Knob value={p.bits} min={1} max={8} step={1} onChange={(v) => update('bits', v)} label="bits" accent={a} format={(v) => `${Math.round(v)}`} />
+          <Knob value={p.rate} min={400} max={12000} step={10} onChange={(v) => update('rate', v)} label="rate" accent={a} format={fHz} />
+          <Knob value={p.mix} min={0} max={1} onChange={(v) => update('mix', v)} label="mix" accent={a} format={fPct} />
+        </KnobRow>
+      );
+
+    case 'timestretch':
+      return (
+        <KnobRow>
+          <Knob value={p.pitch} min={-12} max={12} step={1} onChange={(v) => update('pitch', v)} label="pitch" accent={a} format={(v) => `${v > 0 ? '+' : ''}${v}`} />
+          <Knob value={p.window} min={0.03} max={0.5} onChange={(v) => update('window', v)} label="size" accent={a} format={(v) => `${Math.round(v * 1000)}`} />
+          <Knob value={p.feedback} min={0} max={0.9} onChange={(v) => update('feedback', v)} label="fdbk" accent={a} format={fPct} />
+          <Knob value={p.mix} min={0} max={1} onChange={(v) => update('mix', v)} label="mix" accent={a} format={fPct} />
+        </KnobRow>
+      );
+
+    case 'freeze':
+      return (
+        <KnobRow>
+          <Knob value={p.hold} min={0} max={0.98} onChange={(v) => update('hold', v)} label="hold" accent={a} format={fPct} />
+          <Knob value={p.tone} min={200} max={10000} step={10} onChange={(v) => update('tone', v)} label="tone" accent={a} format={fHz} />
+          <Knob value={p.mix} min={0} max={1} onChange={(v) => update('mix', v)} label="mix" accent={a} format={fPct} />
+        </KnobRow>
+      );
+
     default:
       return null;
   }
