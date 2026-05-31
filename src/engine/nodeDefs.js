@@ -36,7 +36,7 @@ export const NODE_DEFS = {
     label: 'Oscillator',
     category: 'source',
     accent: ACCENT.source,
-    width: 210,
+    width: 286,
     inputs: [{ id: 'level', kind: 'mod' }],
     outputs: [{ id: 'out', kind: 'audio' }],
     defaults: { wave: 'triangle', root: 'C', octave: 2, chord: 'add9', level: 0.5, pan: 0, attack: 3, release: 6, detune: 0, enabled: true },
