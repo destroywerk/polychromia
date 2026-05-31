@@ -22,6 +22,14 @@ const fSec = (v) => `${v.toFixed(1)}s`;
 
 function Row({ children }) { return <div className="flex items-center justify-between gap-2">{children}</div>; }
 function KnobRow({ children }) { return <div className="flex justify-around gap-1 pt-1">{children}</div>; }
+function LabeledStepper({ label, ...props }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[8px] text-white/35 uppercase tracking-[0.15em]">{label}</span>
+      <Stepper {...props} />
+    </div>
+  );
+}
 
 export function NodeBody({ node, def, update, handle }) {
   const p = node.params;
@@ -33,9 +41,9 @@ export function NodeBody({ node, def, update, handle }) {
         <div className="space-y-2.5">
           <Segmented options={WAVES} value={p.wave} onChange={(v) => update('wave', v)} accent={a} />
           <Row>
-            <Stepper value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
-            <Stepper value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
-            <Stepper value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
+            <LabeledStepper label="note" value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
+            <LabeledStepper label="oct" value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
+            <LabeledStepper label="chord" value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
           </Row>
           <KnobRow>
             <Knob value={p.attack} min={0.01} max={8} onChange={(v) => update('attack', v)} label="att" accent={a} format={fSec} />
@@ -50,9 +58,9 @@ export function NodeBody({ node, def, update, handle }) {
       return (
         <div className="space-y-2.5">
           <Row>
-            <Stepper value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
-            <Stepper value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
-            <Stepper value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
+            <LabeledStepper label="note" value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
+            <LabeledStepper label="oct" value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
+            <LabeledStepper label="chord" value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
           </Row>
           <KnobRow>
             <Knob value={p.spread} min={0} max={1} onChange={(v) => update('spread', v)} label="width" accent={a} format={fPct} />
@@ -68,9 +76,9 @@ export function NodeBody({ node, def, update, handle }) {
       return (
         <div className="space-y-2.5">
           <Row>
-            <Stepper value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
-            <Stepper value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
-            <Stepper value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
+            <LabeledStepper label="note" value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
+            <LabeledStepper label="oct" value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
+            <LabeledStepper label="chord" value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
           </Row>
           <KnobRow>
             <Knob value={p.density} min={2} max={8} step={1} onChange={(v) => update('density', v)} label="grains" accent={a} format={(v) => `${Math.round(v)}`} />

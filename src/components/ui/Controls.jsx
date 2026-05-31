@@ -1,4 +1,5 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Knob({ value, min = 0, max = 1, step = 0.01, onChange, label, size = 38, accent = '#8fbaa9', format }) {
   const dragging = useRef(false);
@@ -92,11 +93,67 @@ export function MiniSlider({ value, min = 0, max = 1, step = 0.01, onChange, lab
 export function Stepper({ value, onChange, options, accent = '#8fbaa9', wide }) {
   const idx = options.indexOf(value);
   const go = (dir) => { const ni = (idx + dir + options.length) % options.length; onChange(options[ni]); };
+
+  // Click the displayed value to open a quick-pick dropdown of all options.
+  // Rendered through a portal in screen-space so it's never clipped by node
+  // overflow and always stacks above other nodes. The ‹ › arrows still step.
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const valRef = useRef(null);
+  const popRef = useRef(null);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    const r = valRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ left: r.left + r.width / 2, top: r.bottom + 4 });
+    setOpen((o) => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const inside = (t) => (popRef.current && popRef.current.contains(t)) || (valRef.current && valRef.current.contains(t));
+    const onDown = (ev) => { if (!inside(ev.target)) setOpen(false); };
+    const onWheel = (ev) => { if (!inside(ev.target)) setOpen(false); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('wheel', onWheel, true);
+    window.addEventListener('resize', () => setOpen(false));
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('wheel', onWheel, true);
+    };
+  }, [open]);
+
   return (
     <div className="flex items-center justify-between rounded bg-white/3 border border-white/5" style={{ minWidth: wide ? 80 : 56 }}>
       <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="px-1.5 py-0.5 text-white/30 hover:text-white/70 text-xs">‹</button>
-      <span className="text-[10px] text-white/70 font-cal" style={{ color: accent }}>{value}</span>
+      <button ref={valRef} onPointerDown={(e) => e.stopPropagation()} onClick={toggle}
+        title="Click to choose" className="text-[10px] font-cal px-1 leading-none cursor-pointer hover:opacity-80" style={{ color: accent }}>{value}</button>
       <button onClick={(e) => { e.stopPropagation(); go(1); }} className="px-1.5 py-0.5 text-white/30 hover:text-white/70 text-xs">›</button>
+      {open && pos && createPortal(
+        <div ref={popRef} onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}
+          className="fixed rounded-lg p-1 no-select"
+          style={{
+            left: pos.left, top: pos.top, transform: 'translateX(-50%)', zIndex: 9999,
+            minWidth: wide ? 90 : 60, maxHeight: 200, overflowY: 'auto',
+            background: 'rgba(16,16,19,0.97)', border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(12px)', boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
+          }}>
+          {options.map((opt) => {
+            const active = opt === value;
+            return (
+              <button key={String(opt)} onClick={(e) => { e.stopPropagation(); onChange(opt); setOpen(false); }}
+                className="block w-full text-left px-2 py-1 rounded text-[10px] font-cal transition-colors"
+                style={{ color: active ? accent : 'rgba(255,255,255,0.65)', background: active ? `${accent}22` : 'transparent' }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+                {opt}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
