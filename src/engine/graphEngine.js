@@ -298,6 +298,7 @@ class GraphEngine {
     try {
       await rawCtx.audioWorklet.addModule(url);
       this._recWorkletReady = true;
+      console.info('[rec] worklet module registered ✓');
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -313,13 +314,22 @@ class GraphEngine {
       numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
     });
     node.port.onmessage = (ev) => {
+      if (this._recFrames === 0) console.info('[rec] worklet delivering frames ✓');
       this._recL.push(ev.data.l);
       this._recR.push(ev.data.r);
       this._recFrames += ev.data.l.length;
     };
+    // CRITICAL: an AudioWorkletNode's process() only runs while the node is
+    // pulled by the graph — i.e. connected (transitively) to ctx.destination.
+    // Route its (silent) output through a 0-gain sink into the RAW destination
+    // so the processor is rendered without adding anything audible.
+    const sink = rawCtx.createGain();
+    sink.gain.value = 0;
+    node.connect(sink);
+    sink.connect(rawCtx.destination);
     this.limiter.connect(node);
-    node.connect(rawCtx.destination); // keep the (silent) processor rendered
     this._recNode = node;
+    this._recSink = sink;
   }
 
   _teardownWorklet() {
@@ -328,7 +338,9 @@ class GraphEngine {
       try { this._recNode.port.onmessage = null; } catch (e) {}
       try { this._recNode.disconnect(); } catch (e) {}
     }
+    if (this._recSink) { try { this._recSink.disconnect(); } catch (e) {} }
     this._recNode = null;
+    this._recSink = null;
   }
 
   _startMediaRecorder(rawCtx) {
@@ -388,11 +400,12 @@ class GraphEngine {
       console.info('[rec] started (AudioWorklet) @', this._recRate, 'Hz');
       // Verify frames are actually flowing; if not, silently swap to fallback.
       this._verifyTimer = setTimeout(() => {
+        console.info('[rec] worklet frames after 700ms:', this._recFrames);
         if (this._recording && this._recMethod === 'worklet' && this._recFrames === 0) {
-          console.warn('[rec] worklet produced no frames in 600ms — switching to MediaRecorder');
+          console.warn('[rec] worklet silent — switching to MediaRecorder fallback');
           this._swapToFallback(rawCtx);
         }
-      }, 600);
+      }, 700);
       return { ok: true, method: 'worklet' };
     } catch (e) {
       console.error('[rec] worklet path failed; trying MediaRecorder fallback', e);
@@ -418,10 +431,27 @@ class GraphEngine {
     if (this._verifyTimer) { clearTimeout(this._verifyTimer); this._verifyTimer = null; }
 
     if (this._recMethod === 'media') {
-      const blob = await this._stopMediaRecorder();
-      if (!blob) { console.warn('[rec] no audio captured (media)'); return null; }
-      console.info(`[rec] stopped (media) — ${(blob.size / 1048576).toFixed(2)} MB ${this._recMime}`);
-      return { blob, ext: this._recExt || 'webm', mime: this._recMime || 'audio/webm' };
+      const raw = await this._stopMediaRecorder();
+      if (!raw) { console.warn('[rec] no audio captured (media)'); return null; }
+      console.info(`[rec] stopped (media) — ${(raw.size / 1048576).toFixed(2)} MB ${this._recMime}`);
+      // The user wants a WAV even on the fallback: decode the compressed
+      // container to PCM and re-encode through the verified WAV encoder. The
+      // result is a valid, full-length WAV (lossy if the source was opus).
+      try {
+        const arr = await raw.arrayBuffer();
+        const rawCtx = Tone.getContext().rawContext;
+        const audioBuf = await rawCtx.decodeAudioData(arr);
+        const left = audioBuf.getChannelData(0);
+        const right = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : left;
+        const wav = encodeWavPCM16(left, right, audioBuf.sampleRate);
+        console.info(`[rec] fallback decoded → WAV (${(wav.size / 1048576).toFixed(2)} MB, ~${audioBuf.duration.toFixed(1)}s)`);
+        return { blob: wav, ext: 'wav', mime: 'audio/wav' };
+      } catch (e) {
+        // Last resort: save the raw container with its real extension so it at
+        // least plays. The UI surfaces this via recError from useGraph.
+        console.warn('[rec] could not decode fallback to WAV — saving raw container', e);
+        return { blob: raw, ext: this._recExt || 'webm', mime: this._recMime || 'audio/webm', degraded: true };
+      }
     }
 
     // worklet path → encode PCM WAV

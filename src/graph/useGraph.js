@@ -228,7 +228,8 @@ export function useGraph() {
     catch (e) { console.error('stopRecording threw', e); setRecError('Export failed — see console'); }
     setIsRecording(false);
     if (!result || !result.blob) { setRecError('No audio was captured'); return; }
-    const { blob, ext } = result;
+    const { blob, ext, degraded } = result;
+    if (degraded) setRecError(`Saved as .${ext} (couldn't transcode to WAV)`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
