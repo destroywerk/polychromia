@@ -441,7 +441,7 @@ export const NODE_DEFS = {
     width: 234,
     inputs: [{ id: 'level', kind: 'mod' }],
     outputs: [{ id: 'out', kind: 'audio' }],
-    defaults: { notes: ['C3', 'E3', 'G3', 'B3'], division: '4n', mode: 'up', preset: 'keys', level: 0.5, pan: 0, gate: 0.7, enabled: true },
+    defaults: { notes: ['C3', 'E3', 'G3', 'B3'], division: '4n', mode: 'up', preset: 'keys', noteLength: 0.6, gate: 0.7, level: 0.5, pan: 0, enabled: true },
     create(ctx, p) {
       let synth = makePresetSynth(p.preset);
       const level = new Tone.Gain(p.level);
@@ -449,6 +449,11 @@ export const NODE_DEFS = {
       synth.connect(level); level.connect(pan);
       const state = { ...p, idx: 0, enabled: p.enabled !== false, transportOn: false, running: false };
       let loop = null;
+
+      // Tie the synth's envelope release to noteLength where the preset has one
+      // (FM/Mono/Poly); percussive presets (pluck) just ignore it.
+      const applyRelease = () => { try { synth.set({ envelope: { release: clampNum(state.noteLength, 0.05, 6) } }); } catch (e) {} };
+      applyRelease();
 
       const nextNote = () => {
         const list = state.notes;
@@ -461,7 +466,8 @@ export const NODE_DEFS = {
         if (loop) { loop.dispose(); loop = null; }
         loop = new Tone.Loop((time) => {
           const n = nextNote();
-          if (n) { try { synth.triggerAttackRelease(n, Tone.Time(state.division).toSeconds() * state.gate, time); } catch (e) {} }
+          // Per-step note length (seconds) trimmed by gate; read live each tick.
+          if (n) { try { synth.triggerAttackRelease(n, Math.max(0.02, state.noteLength * state.gate), time); } catch (e) {} }
         }, state.division).start(0);
       };
       const releaseAll = () => { try { synth.releaseAll?.(); } catch (e) {} try { synth.triggerRelease?.(); } catch (e) {} };
@@ -490,7 +496,9 @@ export const NODE_DEFS = {
             setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
             synth = makePresetSynth(val);
             synth.connect(level);
+            applyRelease();   // survive preset changes
           }
+          else if (key === 'noteLength') applyRelease();   // duration read live by the loop; this just matches the tail
           else if (key === 'division' && state.running) buildLoop();
         },
         dispose() { if (loop) loop.dispose(); try { synth.dispose(); } catch (e) {} level.dispose(); pan.dispose(); },

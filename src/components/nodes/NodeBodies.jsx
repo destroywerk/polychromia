@@ -315,6 +315,7 @@ function SynthSeqBody({ p, a, update, handle }) {
         <Stepper value={p.division} onChange={(v) => update('division', v)} options={DIVISIONS} accent={a} />
       </Row>
       <KnobRow>
+        <Knob value={p.noteLength} min={0.05} max={4} onChange={(v) => update('noteLength', v)} label="length" accent={a} format={fSec} />
         <Knob value={p.gate} min={0.1} max={1} onChange={(v) => update('gate', v)} label="gate" accent={a} format={fPct} />
         <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
       </KnobRow>
