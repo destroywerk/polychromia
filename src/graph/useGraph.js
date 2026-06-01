@@ -101,6 +101,7 @@ export function useGraph() {
   const [bpm, setBpmState] = useState(70);
   const [masterVolume, setMasterVolumeState] = useState(0.9);
   const [isRecording, setIsRecording] = useState(false);
+  const [recError, setRecError] = useState(null);
   const [globalKey, setGlobalKeyState] = useState({ root: 'C', chord: 'add9' });
   const globalKeyRef = useRef({ root: 'C', chord: 'add9' });
   const idRef = useRef({});
@@ -209,22 +210,34 @@ export function useGraph() {
 
   // ── Recording ──
   const startRecording = useCallback(async () => {
-    const ok = await graphEngine.startRecording();
-    if (ok) setIsRecording(true);
-    else console.warn('Record Mix: could not start recording (see earlier error)');
+    setRecError(null);
+    let res;
+    try { res = await graphEngine.startRecording(); }
+    catch (e) { console.error('startRecording threw', e); res = { ok: false, error: e?.message || 'Recording failed' }; }
+    if (res && res.ok) { setIsRecording(true); }
+    else {
+      setIsRecording(false);
+      const msg = (res && res.error) || 'Recording failed to start';
+      setRecError(msg);
+      console.error('Record Mix failed:', msg);
+    }
   }, []);
   const stopRecording = useCallback(async () => {
-    const blob = await graphEngine.stopRecording();
+    let result = null;
+    try { result = await graphEngine.stopRecording(); }
+    catch (e) { console.error('stopRecording threw', e); setRecError('Export failed — see console'); }
     setIsRecording(false);
-    if (!blob) return;
+    if (!result || !result.blob) { setRecError('No audio was captured'); return; }
+    const { blob, ext } = result;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `polychromia-${Date.now()}.wav`;
+    a.download = `polychromia-${Date.now()}.${ext || 'wav'}`;
     a.click();
     // Defer revoke so large (50MB+) downloads aren't cancelled before they start.
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, []);
+  const clearRecError = useCallback(() => setRecError(null), []);
 
   return {
     initialized, init,
@@ -237,6 +250,7 @@ export function useGraph() {
     bpm, setBpm,
     masterVolume, setMasterVolume,
     isRecording, startRecording, stopRecording,
+    recError, clearRecError,
     getHandle: (id) => graphEngine.getHandle(id),
     engine: graphEngine,
   };

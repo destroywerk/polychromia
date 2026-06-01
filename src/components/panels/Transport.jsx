@@ -47,7 +47,7 @@ function MiniPlay({ playing, onPlay, onPause }) {
   );
 }
 
-export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, engine, globalKey, onGlobalKey, onRandomise, onClear, collapsed, onToggleCollapse }) {
+export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, recError, onClearRecError, engine, globalKey, onGlobalKey, onRandomise, onClear, collapsed, onToggleCollapse }) {
   const bpmDrag = useRef(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const onBpmDown = (e) => {
@@ -141,15 +141,22 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
 
       {/* Record */}
       {isRecording ? (
-        <button onClick={onStopRec} className="w-full py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] flex items-center justify-center gap-2"
+        <button onClick={async () => { await onStopRec?.(); }} className="w-full py-2 rounded-lg text-[10px] uppercase tracking-[0.15em] flex items-center justify-center gap-2"
           style={{ background: 'rgba(217,122,106,0.15)', border: '1px solid rgba(217,122,106,0.5)', color: '#d97a6a' }}>
-          <span className="w-2 h-2 rounded-sm bg-current animate-pulse" /> Stop & Export WAV
+          <span className="w-2 h-2 rounded-sm bg-current animate-pulse" /> Stop & Export
         </button>
       ) : (
-        <button onClick={onStartRec} className="w-full py-2 rounded-lg text-[10px] uppercase tracking-[0.15em]"
+        <button onClick={async () => { onClearRecError?.(); await onStartRec?.(); }} className="w-full py-2 rounded-lg text-[10px] uppercase tracking-[0.15em]"
           style={{ background: 'rgba(217,122,106,0.06)', border: '1px solid rgba(217,122,106,0.25)', color: 'rgba(217,122,106,0.8)' }}>
           ● Record Mix
         </button>
+      )}
+      {recError && (
+        <div className="rounded-lg px-2.5 py-1.5 text-[9px] leading-snug flex items-start gap-1.5"
+          style={{ background: 'rgba(217,122,106,0.1)', border: '1px solid rgba(217,122,106,0.35)', color: '#d97a6a' }}>
+          <span className="flex-1">⚠ {recError}</span>
+          <button onClick={() => onClearRecError?.()} className="opacity-60 hover:opacity-100">×</button>
+        </div>
       )}
 
       {confirmClear && (

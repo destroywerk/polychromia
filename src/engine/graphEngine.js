@@ -283,7 +283,14 @@ class GraphEngine {
     return -Infinity;
   }
 
-  // ── Master recording / export (true PCM WAV via AudioWorklet) ───────────
+  // ── Master recording / export ──────────────────────────────────────────
+  // Strategy: try true PCM WAV via an AudioWorklet, but VERIFY it is actually
+  // producing frames shortly after start; if not (silent worklet — the failure
+  // mode that bit the last 2 attempts) automatically swap to a MediaRecorder
+  // fallback which always yields a playable file (saved with its real
+  // extension/mime, never a faked .wav). Any thrown error also drops to the
+  // fallback, and a hard failure is reported back to the UI.
+
   async _ensureRecorderWorklet(rawCtx) {
     if (this._recWorkletReady) return;
     const blob = new Blob([RECORDER_WORKLET_SRC], { type: 'application/javascript' });
@@ -296,56 +303,136 @@ class GraphEngine {
     }
   }
 
-  async startRecording() {
-    if (!this.initialized || this._recording) return false;
-    try {
-      const rawCtx = Tone.getContext().rawContext;
-      // The record click is a user gesture — make sure the context is running.
-      if (rawCtx.state === 'suspended') { try { await rawCtx.resume(); } catch (e) {} }
-      await this._ensureRecorderWorklet(rawCtx);
-      this._recRate = rawCtx.sampleRate;
-      this._recL = [];
-      this._recR = [];
-      this._recFrames = 0;
-      const node = new AudioWorkletNode(rawCtx, 'poly-recorder', {
-        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
-      });
-      node.port.onmessage = (ev) => {
-        this._recL.push(ev.data.l);
-        this._recR.push(ev.data.r);
-        this._recFrames += ev.data.l.length;
+  async _startWorklet(rawCtx) {
+    await this._ensureRecorderWorklet(rawCtx);
+    this._recRate = rawCtx.sampleRate;
+    this._recL = [];
+    this._recR = [];
+    this._recFrames = 0;
+    const node = new AudioWorkletNode(rawCtx, 'poly-recorder', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+    });
+    node.port.onmessage = (ev) => {
+      this._recL.push(ev.data.l);
+      this._recR.push(ev.data.r);
+      this._recFrames += ev.data.l.length;
+    };
+    this.limiter.connect(node);
+    node.connect(rawCtx.destination); // keep the (silent) processor rendered
+    this._recNode = node;
+  }
+
+  _teardownWorklet() {
+    try { this.limiter.disconnect(this._recNode); } catch (e) {}
+    if (this._recNode) {
+      try { this._recNode.port.onmessage = null; } catch (e) {}
+      try { this._recNode.disconnect(); } catch (e) {}
+    }
+    this._recNode = null;
+  }
+
+  _startMediaRecorder(rawCtx) {
+    if (typeof MediaRecorder === 'undefined') throw new Error('MediaRecorder unsupported');
+    const dest = rawCtx.createMediaStreamDestination();
+    this.limiter.connect(dest);
+    this._recDest = dest;
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
+    let mime = '';
+    for (const c of candidates) { try { if (MediaRecorder.isTypeSupported(c)) { mime = c; break; } } catch (e) {} }
+    const mr = mime ? new MediaRecorder(dest.stream, { mimeType: mime }) : new MediaRecorder(dest.stream);
+    this._recMime = mr.mimeType || mime || 'audio/webm';
+    this._recExt = /ogg/.test(this._recMime) ? 'ogg' : /mp4/.test(this._recMime) ? 'm4a' : 'webm';
+    this._recChunks = [];
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) this._recChunks.push(e.data); };
+    mr.start(1000); // flush a chunk every second so long sessions aren't lost
+    this._recMR = mr;
+  }
+
+  _stopMediaRecorder() {
+    return new Promise((resolve) => {
+      const mr = this._recMR;
+      if (!mr) return resolve(null);
+      mr.onstop = () => {
+        const blob = new Blob(this._recChunks || [], { type: this._recMime || 'audio/webm' });
+        try { this.limiter.disconnect(this._recDest); } catch (e) {}
+        this._recChunks = null; this._recMR = null; this._recDest = null;
+        resolve(blob.size ? blob : null);
       };
-      // Tap the master into the worklet, and connect the (silent) worklet output
-      // to the destination so the processor is rendered for the whole session.
-      this.limiter.connect(node);
-      node.connect(rawCtx.destination);
-      this._recNode = node;
+      try { mr.stop(); } catch (e) { resolve(null); }
+    });
+  }
+
+  _swapToFallback(rawCtx) {
+    try {
+      this._teardownWorklet();
+      this._recL = this._recR = null;
+      this._startMediaRecorder(rawCtx);
+      this._recMethod = 'media';
+      console.info('[rec] fallback active (MediaRecorder)', this._recMime);
+    } catch (e) {
+      console.error('[rec] fallback swap failed', e);
+    }
+  }
+
+  async startRecording() {
+    if (!this.initialized) return { ok: false, error: 'Audio engine not started' };
+    if (this._recording) return { ok: false, error: 'Already recording' };
+    const rawCtx = Tone.getContext().rawContext;
+    if (rawCtx.state === 'suspended') { try { await rawCtx.resume(); } catch (e) {} }
+
+    // Preferred: AudioWorklet → true PCM WAV.
+    try {
+      await this._startWorklet(rawCtx);
+      this._recMethod = 'worklet';
       this._recording = true;
       console.info('[rec] started (AudioWorklet) @', this._recRate, 'Hz');
-      return true;
+      // Verify frames are actually flowing; if not, silently swap to fallback.
+      this._verifyTimer = setTimeout(() => {
+        if (this._recording && this._recMethod === 'worklet' && this._recFrames === 0) {
+          console.warn('[rec] worklet produced no frames in 600ms — switching to MediaRecorder');
+          this._swapToFallback(rawCtx);
+        }
+      }, 600);
+      return { ok: true, method: 'worklet' };
     } catch (e) {
-      console.error('[rec] startRecording failed', e);
+      console.error('[rec] worklet path failed; trying MediaRecorder fallback', e);
+    }
+
+    // Fallback: MediaStreamDestination + MediaRecorder (real container/ext).
+    try {
+      this._startMediaRecorder(rawCtx);
+      this._recMethod = 'media';
+      this._recording = true;
+      console.info('[rec] started (MediaRecorder fallback)', this._recMime);
+      return { ok: true, method: 'media' };
+    } catch (e) {
+      console.error('[rec] MediaRecorder fallback failed', e);
       this._recording = false;
-      this._recNode = null;
-      return false;
+      return { ok: false, error: e?.message || 'Recording failed to start' };
     }
   }
 
   async stopRecording() {
     if (!this._recording) return null;
     this._recording = false;
-    try { this.limiter.disconnect(this._recNode); } catch (e) {}
-    if (this._recNode) {
-      try { this._recNode.port.onmessage = null; } catch (e) {}
-      try { this._recNode.disconnect(); } catch (e) {}
+    if (this._verifyTimer) { clearTimeout(this._verifyTimer); this._verifyTimer = null; }
+
+    if (this._recMethod === 'media') {
+      const blob = await this._stopMediaRecorder();
+      if (!blob) { console.warn('[rec] no audio captured (media)'); return null; }
+      console.info(`[rec] stopped (media) — ${(blob.size / 1048576).toFixed(2)} MB ${this._recMime}`);
+      return { blob, ext: this._recExt || 'webm', mime: this._recMime || 'audio/webm' };
     }
+
+    // worklet path → encode PCM WAV
+    this._teardownWorklet();
     const left = concatFloat32(this._recL || []);
     const right = concatFloat32(this._recR || []);
     const secs = (left.length / (this._recRate || 44100)).toFixed(1);
-    console.info(`[rec] stopped — ${left.length} samples/ch (~${secs}s)`);
-    this._recL = this._recR = this._recNode = null;
-    if (!left.length) { console.warn('[rec] no audio captured — nothing to export'); return null; }
-    return encodeWavPCM16(left, right, this._recRate || 44100);
+    this._recL = this._recR = null;
+    if (!left.length) { console.warn('[rec] no audio captured (worklet)'); return null; }
+    console.info(`[rec] stopped (worklet) — ${left.length} samples/ch (~${secs}s)`);
+    return { blob: encodeWavPCM16(left, right, this._recRate || 44100), ext: 'wav', mime: 'audio/wav' };
   }
 }
 
