@@ -1145,7 +1145,10 @@ export const NODE_DEFS = {
       const dry = new Tone.Gain(1 - p.mix);
       const wet = new Tone.Gain(p.mix);
       const out = new Tone.Gain(1);
+      // dry passthrough AND the summed pitch voices (wet) must both reach out —
+      // wet → out was missing, so the harmonized voices fed a dead-end node.
       inGain.connect(dry); dry.connect(out);
+      wet.connect(out);
       const state = { ...p };
       let shifters = [];
       const buildVoices = () => {
