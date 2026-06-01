@@ -30,6 +30,34 @@ function makeMonoSynth(wave, envelope) {
   return new Tone.Synth({ oscillator: { type: wave }, envelope });
 }
 
+// Distinct timbres for the Synth Sequencer node, built from Tone instruments
+// with envelopes tuned for ambient use.
+export const SYNTH_PRESETS = ['keys', 'pluck', 'bell', 'bass', 'pad'];
+function makePresetSynth(preset) {
+  switch (preset) {
+    case 'pluck':
+      return new Tone.PluckSynth({ attackNoise: 0.8, dampening: 3000, resonance: 0.92 });
+    case 'bell':
+      return new Tone.FMSynth({ harmonicity: 3.01, modulationIndex: 14, envelope: { attack: 0.001, decay: 1.6, sustain: 0, release: 1.4 }, modulation: { type: 'sine' }, modulationEnvelope: { attack: 0.002, decay: 0.2, sustain: 0, release: 0.2 } });
+    case 'bass':
+      return new Tone.MonoSynth({ oscillator: { type: 'sawtooth' }, filter: { Q: 2, type: 'lowpass' }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 1.2 }, filterEnvelope: { attack: 0.02, decay: 0.25, sustain: 0.4, release: 1, baseFrequency: 90, octaves: 2.6 } });
+    case 'pad':
+      return new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sine' }, envelope: { attack: 1.4, decay: 0.4, sustain: 1, release: 3.2 } });
+    case 'keys':
+    default:
+      return new Tone.FMSynth({ harmonicity: 2, modulationIndex: 5, envelope: { attack: 0.01, decay: 0.5, sustain: 0.25, release: 1.1 } });
+  }
+}
+
+// Shift a note string like "C3" up/down by whole octaves.
+function shiftOctave(noteStr, delta) {
+  const m = /^([A-G]#?)(-?\d+)$/.exec(noteStr);
+  if (!m) return noteStr;
+  return `${m[1]}${parseInt(m[2], 10) + delta}`;
+}
+
+const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 export const NODE_DEFS = {
   // ─────────────────────────── SOURCES ───────────────────────────
   oscillator: {
@@ -260,6 +288,83 @@ export const NODE_DEFS = {
     },
   },
 
+  // Sample loader: decode a local audio file and play it through the standard
+  // source chain, with rate/offset/loop and per-node power + mod inputs.
+  sampler: {
+    label: 'Sampler',
+    category: 'source',
+    accent: ACCENT.source,
+    width: 234,
+    inputs: [{ id: 'level', kind: 'mod' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { fileName: '', rate: 1, offset: 0, loop: true, level: 0.7, pan: 0, enabled: true },
+    create(ctx, p) {
+      const level = new Tone.Gain(p.level);
+      const pan = new Tone.Panner(p.pan);
+      level.connect(pan);
+      let player = null;
+      let buffer = null;
+      const state = { ...p, enabled: p.enabled !== false, transportOn: false, running: false };
+
+      const ensurePlayer = () => {
+        if (!buffer) return null;
+        if (player) return player;
+        player = new Tone.Player(buffer);
+        player.loop = !!state.loop;
+        player.playbackRate = state.rate || 1;
+        player.connect(level);
+        return player;
+      };
+      const startFrom = () => {
+        const pl = ensurePlayer();
+        if (!pl || !buffer) return;
+        try { pl.stop(); } catch (e) {}
+        try { pl.start(undefined, clampNum(state.offset || 0, 0, 0.999) * buffer.duration); } catch (e) {}
+      };
+      const _reconcile = () => {
+        const should = state.enabled && state.transportOn && !!buffer;
+        if (should && !state.running) { startFrom(); state.running = true; }
+        else if (!should && state.running) { if (player) { try { player.stop(); } catch (e) {} } state.running = false; }
+      };
+
+      const handle = {
+        audioIn: null, audioOut: pan, modOut: null, modIns: { level: level.gain },
+        level, pan, isSource: true,
+        async loadFile(file) {
+          try {
+            const arr = await file.arrayBuffer();
+            const audioBuf = await Tone.getContext().rawContext.decodeAudioData(arr);
+            buffer = audioBuf;
+            state.fileName = file.name;
+            if (player) { try { player.stop(); player.dispose(); } catch (e) {} player = null; }
+            state.running = false;
+            _reconcile();
+            if (handle.onLoaded) handle.onLoaded(file.name, audioBuf.duration);
+            return true;
+          } catch (e) {
+            console.warn('sampler: decode failed', e);
+            if (handle.onLoaded) handle.onLoaded(null, 0);
+            return false;
+          }
+        },
+        setEnabled(on) { state.enabled = on; _reconcile(); },
+        setTransport(on) { state.transportOn = on; _reconcile(); },
+        play() { state.enabled = true; _reconcile(); },
+        stop() { state.enabled = false; _reconcile(); },
+        update(key, val) {
+          state[key] = val;
+          if (key === 'level') level.gain.rampTo(val, 0.08);
+          else if (key === 'pan') pan.pan.rampTo(val, 0.08);
+          else if (key === 'rate') { if (player) player.playbackRate = val; }
+          else if (key === 'loop') { if (player) player.loop = !!val; }
+          else if (key === 'offset') { if (state.running) startFrom(); }
+        },
+        dispose() { if (player) { try { player.stop(); player.dispose(); } catch (e) {} } level.dispose(); pan.dispose(); },
+      };
+      return handle;
+    },
+  },
+
   noteCycler: {
     label: 'Sequencer',
     category: 'sequence',
@@ -318,6 +423,72 @@ export const NODE_DEFS = {
             const old = synth;
             setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
             synth = makeMonoSynth(val, SEQ_ENV);
+            synth.connect(level);
+          }
+          else if (key === 'division' && state.running) buildLoop();
+        },
+        dispose() { if (loop) loop.dispose(); try { synth.dispose(); } catch (e) {} level.dispose(); pan.dispose(); },
+      };
+      return handle;
+    },
+  },
+
+  // Sequencer with a selectable preset synth voice (pluck/bell/keys/bass/pad).
+  synthSeq: {
+    label: 'Synth Sequencer',
+    category: 'sequence',
+    accent: ACCENT.sequence,
+    width: 234,
+    inputs: [{ id: 'level', kind: 'mod' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { notes: ['C3', 'E3', 'G3', 'B3'], division: '4n', mode: 'up', preset: 'keys', level: 0.5, pan: 0, gate: 0.7, enabled: true },
+    create(ctx, p) {
+      let synth = makePresetSynth(p.preset);
+      const level = new Tone.Gain(p.level);
+      const pan = new Tone.Panner(p.pan);
+      synth.connect(level); level.connect(pan);
+      const state = { ...p, idx: 0, enabled: p.enabled !== false, transportOn: false, running: false };
+      let loop = null;
+
+      const nextNote = () => {
+        const list = state.notes;
+        if (!list.length) return null;
+        if (state.mode === 'random') return list[Math.floor(Math.random() * list.length)];
+        if (state.mode === 'down') { const n = list[(list.length - 1 - (state.idx % list.length))]; state.idx++; return n; }
+        const n = list[state.idx % list.length]; state.idx++; return n;
+      };
+      const buildLoop = () => {
+        if (loop) { loop.dispose(); loop = null; }
+        loop = new Tone.Loop((time) => {
+          const n = nextNote();
+          if (n) { try { synth.triggerAttackRelease(n, Tone.Time(state.division).toSeconds() * state.gate, time); } catch (e) {} }
+        }, state.division).start(0);
+      };
+      const releaseAll = () => { try { synth.releaseAll?.(); } catch (e) {} try { synth.triggerRelease?.(); } catch (e) {} };
+
+      const handle = {
+        audioIn: null, audioOut: pan, modOut: null,
+        modIns: { level: level.gain },
+        level, pan, isSource: true,
+        _reconcile() {
+          const should = state.enabled && state.transportOn;
+          if (should && !state.running) { state.idx = 0; buildLoop(); state.running = true; }
+          else if (!should && state.running) { if (loop) { loop.dispose(); loop = null; } releaseAll(); state.running = false; }
+        },
+        setEnabled(on) { state.enabled = on; this._reconcile(); },
+        setTransport(on) { state.transportOn = on; this._reconcile(); },
+        play() { state.enabled = true; this._reconcile(); },
+        stop() { state.enabled = false; this._reconcile(); },
+        update(key, val) {
+          state[key] = val;
+          if (key === 'level') level.gain.rampTo(val, 0.08);
+          else if (key === 'pan') pan.pan.rampTo(val, 0.08);
+          else if (key === 'preset') {
+            releaseAll();
+            try { synth.disconnect(); } catch (e) {}
+            const old = synth;
+            setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
+            synth = makePresetSynth(val);
             synth.connect(level);
           }
           else if (key === 'division' && state.running) buildLoop();
@@ -401,6 +572,86 @@ export const NODE_DEFS = {
     },
   },
 
+  // Arpeggiator: steps through the chord tones (in the current key) across a
+  // selectable octave range, in up/down/up-down/random order.
+  arp: {
+    label: 'Arpeggiator',
+    category: 'sequence',
+    accent: ACCENT.sequence,
+    width: 234,
+    inputs: [{ id: 'level', kind: 'mod' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { root: 'C', octave: 3, chord: 'maj7', pattern: 'up', rate: '8n', octaves: 2, gate: 0.55, wave: 'triangle', level: 0.5, pan: 0, enabled: true },
+    create(ctx, p) {
+      const ARP_ENV = { attack: 0.01, decay: 0.18, sustain: 0.25, release: 0.4 };
+      let synth = makeMonoSynth(p.wave, ARP_ENV);
+      const level = new Tone.Gain(p.level);
+      const pan = new Tone.Panner(p.pan);
+      synth.connect(level); level.connect(pan);
+      const state = { ...p, idx: 0, enabled: p.enabled !== false, transportOn: false, running: false };
+      let loop = null;
+      let sequence = [];
+
+      const buildSequence = () => {
+        const base = getChordNotes(state.root, state.octave, state.chord);
+        let seq = [];
+        const oct = Math.max(1, Math.round(state.octaves));
+        for (let o = 0; o < oct; o++) base.forEach((n) => seq.push(shiftOctave(n, o)));
+        if (state.pattern === 'down') seq = seq.slice().reverse();
+        else if (state.pattern === 'updown' && seq.length > 2) seq = seq.concat(seq.slice(1, -1).reverse());
+        sequence = seq;
+      };
+      const nextNote = () => {
+        if (!sequence.length) return null;
+        if (state.pattern === 'random') return sequence[Math.floor(Math.random() * sequence.length)];
+        const n = sequence[state.idx % sequence.length]; state.idx++; return n;
+      };
+      const buildLoop = () => {
+        if (loop) { loop.dispose(); loop = null; }
+        buildSequence();
+        loop = new Tone.Loop((time) => {
+          const n = nextNote();
+          if (n) { try { synth.triggerAttackRelease(n, Tone.Time(state.rate).toSeconds() * state.gate, time); } catch (e) {} }
+        }, state.rate).start(0);
+      };
+
+      const handle = {
+        audioIn: null, audioOut: pan, modOut: null,
+        modIns: { level: level.gain },
+        level, pan, isSource: true,
+        _reconcile() {
+          const should = state.enabled && state.transportOn;
+          if (should && !state.running) { state.idx = 0; buildLoop(); state.running = true; }
+          else if (!should && state.running) { if (loop) { loop.dispose(); loop = null; } try { synth.triggerRelease(); } catch (e) {} state.running = false; }
+        },
+        setEnabled(on) { state.enabled = on; this._reconcile(); },
+        setTransport(on) { state.transportOn = on; this._reconcile(); },
+        play() { state.enabled = true; this._reconcile(); },
+        stop() { state.enabled = false; this._reconcile(); },
+        update(key, val) {
+          state[key] = val;
+          if (key === 'level') level.gain.rampTo(val, 0.08);
+          else if (key === 'pan') pan.pan.rampTo(val, 0.08);
+          else if (key === 'wave') {
+            try { synth.triggerRelease(); } catch (e) {}
+            try { synth.disconnect(); } catch (e) {}
+            const old = synth;
+            setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
+            synth = makeMonoSynth(val, ARP_ENV);
+            synth.connect(level);
+          }
+          else if (key === 'rate') { if (state.running) buildLoop(); }
+          else if (key === 'root' || key === 'octave' || key === 'chord' || key === 'pattern' || key === 'octaves') {
+            buildSequence();
+            if (state.running) buildLoop();
+          }
+        },
+        dispose() { if (loop) loop.dispose(); try { synth.dispose(); } catch (e) {} level.dispose(); pan.dispose(); },
+      };
+      return handle;
+    },
+  },
+
   stream: {
     label: 'Radio Stream',
     category: 'stream',
@@ -472,7 +723,7 @@ export const NODE_DEFS = {
     width: 230,
     inputs: [{ id: 'in', kind: 'audio' }],
     outputs: [{ id: 'out', kind: 'audio' }],
-    defaults: { level: 0.85, pan: 0, reverse: false, status: 'idle', hasLoop: false, enabled: true },
+    defaults: { level: 0.85, pan: 0, reverse: false, status: 'idle', hasLoop: false, loopStart: 0, loopEnd: 1, enabled: true },
     create(ctx, p) {
       const input = new Tone.Gain(1);          // audio in (tap for recording)
       const recorder = new Tone.Recorder();
@@ -484,11 +735,24 @@ export const NODE_DEFS = {
       // alongside any loop playback (both sum into `level`).
       input.connect(level);
       let player = null;
-      const state = { ...p, enabled: p.enabled !== false };
+      let buffer = null;                        // decoded AudioBuffer for waveform UI
+      const state = { ...p, loopStart: p.loopStart ?? 0, loopEnd: p.loopEnd ?? 1, enabled: p.enabled !== false };
+
+      // Apply the chosen start/end region (fractions 0..1) as Tone.Player loop points.
+      const applyLoopPoints = () => {
+        if (!player || !buffer || !buffer.duration) return;
+        const s = clampNum(state.loopStart ?? 0, 0, 1);
+        const e = clampNum(state.loopEnd ?? 1, 0, 1);
+        const lo = Math.min(s, e);
+        const hi = Math.max(Math.max(s, e), lo + 0.01);
+        player.loopStart = lo * buffer.duration;
+        player.loopEnd = Math.min(hi * buffer.duration, buffer.duration);
+      };
 
       const handle = {
         audioIn: input, audioOut: pan, modOut: null, modIns: {},
         level, pan, isSource: true,
+        getBuffer() { return buffer; },
         async record() {
           if (recorder.state === 'started') return;
           recorder.start();
@@ -503,18 +767,22 @@ export const NODE_DEFS = {
             const arr = await blob.arrayBuffer();
             const audioBuf = await Tone.getContext().rawContext.decodeAudioData(arr);
             if (player) { try { player.stop(); player.dispose(); } catch (e) {} }
+            buffer = audioBuf;
             player = new Tone.Player(audioBuf);
             player.loop = true;
             player.reverse = state.reverse;
+            applyLoopPoints();
             player.connect(level);
             state.hasLoop = true;
             if (handle.onState) handle.onState('ready');
+            if (handle.onBuffer) handle.onBuffer(audioBuf);
           } catch (e) { console.warn('loop decode error', e); if (handle.onState) handle.onState('idle'); }
         },
         trigger() {
-          if (!player) return;
+          if (!player || !buffer) return;
           try { player.stop(); } catch (e) {}
-          player.start();
+          applyLoopPoints();
+          try { player.start(undefined, (clampNum(state.loopStart ?? 0, 0, 1)) * buffer.duration); } catch (e) { try { player.start(); } catch (err) {} }
           state.status = 'playing';
           if (handle.onState) handle.onState('playing');
         },
@@ -528,6 +796,10 @@ export const NODE_DEFS = {
           if (key === 'level') level.gain.rampTo(val, 0.08);
           else if (key === 'pan') pan.pan.rampTo(val, 0.08);
           else if (key === 'reverse' && player) player.reverse = val;
+          else if (key === 'loopStart' || key === 'loopEnd') {
+            applyLoopPoints();
+            if (state.status === 'playing') this.trigger();   // restart from new region
+          }
         },
         dispose() { if (player) { try { player.stop(); player.dispose(); } catch (e) {} } try { recorder.dispose(); } catch (e) {} input.dispose(); level.dispose(); pan.dispose(); },
       };
@@ -849,15 +1121,60 @@ export const NODE_DEFS = {
       };
     },
   },
+
+  // Harmonizer / multi-voice: overlays pitch-shifted copies of the input (up &
+  // down) to thicken it into harmonic variants.
+  harmonizer: {
+    label: 'Harmonizer',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 214,
+    inputs: [{ id: 'in', kind: 'audio' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { voices: 2, interval: 7, detune: 6, mix: 0.5 },
+    create(ctx, p) {
+      const inGain = new Tone.Gain(1);
+      const dry = new Tone.Gain(1 - p.mix);
+      const wet = new Tone.Gain(p.mix);
+      const out = new Tone.Gain(1);
+      inGain.connect(dry); dry.connect(out);
+      const state = { ...p };
+      let shifters = [];
+      const buildVoices = () => {
+        shifters.forEach((s) => { try { s.disconnect(); s.dispose(); } catch (e) {} });
+        shifters = [];
+        const n = clampNum(Math.round(state.voices), 1, 4);
+        for (let i = 0; i < n; i++) {
+          const dir = i % 2 === 0 ? 1 : -1;       // alternate up / down
+          const mult = Math.floor(i / 2) + 1;     // stack further out for more voices
+          const pitch = dir * (state.interval * mult) + dir * ((state.detune || 0) / 100);
+          const ps = new Tone.PitchShift({ pitch, windowSize: 0.1, feedback: 0, wet: 1 });
+          inGain.connect(ps); ps.connect(wet);
+          shifters.push(ps);
+        }
+      };
+      buildVoices();
+      return {
+        audioIn: inGain, audioOut: out, modOut: null, modIns: {}, isSource: false,
+        play() {}, stop() {}, setTransport() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'mix') { wet.gain.rampTo(val, 0.1); dry.gain.rampTo(1 - val, 0.1); }
+          else if (key === 'voices' || key === 'interval' || key === 'detune') buildVoices();
+        },
+        dispose() { shifters.forEach((s) => { try { s.dispose(); } catch (e) {} }); [inGain, dry, wet, out].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
 };
 
 export const NODE_CATEGORIES = [
-  { id: 'source', label: 'Drone & Texture Sources', types: ['drift', 'grain', 'noise', 'oscillator'] },
-  { id: 'sequence', label: 'Sequencing', types: ['noteCycler', 'progression'] },
+  { id: 'source', label: 'Drone & Texture Sources', types: ['drift', 'grain', 'noise', 'oscillator', 'sampler'] },
+  { id: 'sequence', label: 'Sequencing', types: ['noteCycler', 'synthSeq', 'arp', 'progression'] },
   { id: 'stream', label: 'Streams', types: ['stream'] },
   { id: 'looper', label: 'Loopers', types: ['looper'] },
   { id: 'mod', label: 'Modulation', types: ['lfo'] },
-  { id: 'effect', label: 'Effects', types: ['filter', 'delay', 'reverb', 'eq', 'warp', 'stutter', 'pixelate', 'timestretch', 'freeze'] },
+  { id: 'effect', label: 'Effects', types: ['filter', 'delay', 'reverb', 'eq', 'warp', 'stutter', 'pixelate', 'timestretch', 'freeze', 'harmonizer'] },
 ];
 
 export { ACCENT };

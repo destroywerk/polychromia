@@ -77,32 +77,41 @@ export default function App() {
   const handleImportImage = useCallback(async (file) => {
     if (!file) return;
     if (!graph.initialized) await graph.init();
-    let voices = [];
-    try { voices = await imageToPatch(file, { maxVoices: 5 }); }
+    let result = { voices: [], effects: [] };
+    try { result = await imageToPatch(file, { maxVoices: 5 }); }
     catch (e) { console.warn('image import failed', e); return; }
+    const { voices = [], effects = [] } = result;
     if (!voices.length) return;
     // Anchor the import inside the currently visible region.
     const origin = spawnPoint();
-    // Spawn a shared reverb to glue the imported voices into one cohesive,
-    // evolving wash, then fan every voice into it. Place it to the right of grid.
-    const reverbId = graph.addNode('reverb', origin.x + 3 * 250, origin.y + 60);
-    if (reverbId) {
-      graph.updateParam(reverbId, 'decay', 7);
-      graph.updateParam(reverbId, 'wet', 0.5);
-    }
-    // Spread voices across the canvas in a non-overlapping grid (node width ~210).
-    // Each voice is a typed generator (grain / drift / noise / oscillator) chosen
-    // from the image; spawn that type and apply only its valid params.
+
+    // Build the effect chain to the right of the generator grid: each effect
+    // feeds the next, the last (a reverb) terminates into master. The first
+    // effect is the fan-in point for every generated voice.
+    const fxX = origin.x + 3 * 250;
+    let prevFxId = null;
+    let firstFxId = null;
+    effects.forEach((fx, i) => {
+      const id = graph.addNode(fx.type, fxX, origin.y + i * 150);
+      if (!id) return;
+      Object.entries(fx.params).forEach(([key, val]) => graph.updateParam(id, key, val));
+      if (i === 0) firstFxId = id;
+      if (prevFxId) graph.addConnection({ node: prevFxId, port: 'out', kind: 'audio' }, { node: id, port: 'in', kind: 'audio' });
+      prevFxId = id;
+    });
+
+    // Spread voices across a non-overlapping grid (node width ~230) and fan each
+    // into the head of the effect chain (multiple audio cables into one input
+    // are allowed). With no effects, voices route to master directly.
     voices.forEach((v, i) => {
       const col = i % 3;
       const rown = Math.floor(i / 3);
       const x = origin.x + col * 250;
       const y = origin.y + rown * 220 + col * 24;
-      const { type, ...params } = v;
-      const id = graph.addNode(type, x, y);
+      const id = graph.addNode(v.type, x, y);
       if (!id) return;
-      Object.entries(params).forEach(([key, val]) => graph.updateParam(id, key, val));
-      if (reverbId) graph.addConnection({ node: id, port: 'out', kind: 'audio' }, { node: reverbId, port: 'in', kind: 'audio' });
+      Object.entries(v.params).forEach(([key, val]) => graph.updateParam(id, key, val));
+      if (firstFxId) graph.addConnection({ node: id, port: 'out', kind: 'audio' }, { node: firstFxId, port: 'in', kind: 'audio' });
     });
   }, [graph, spawnPoint]);
 

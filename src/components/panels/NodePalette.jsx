@@ -2,10 +2,10 @@ import React, { useRef } from 'react';
 import { NODE_DEFS, NODE_CATEGORIES } from '../../engine/nodeDefs';
 
 const ICONS = {
-  oscillator: '∿', drift: '◍', grain: '∷', noise: '▒',
-  noteCycler: '↻', progression: '⊞', stream: '◈',
+  oscillator: '∿', drift: '◍', grain: '∷', noise: '▒', sampler: '◼',
+  noteCycler: '↻', synthSeq: '⎓', arp: '⇗', progression: '⊞', stream: '◈',
   looper: '⊚', lfo: '〜', filter: '⏚', delay: '⋯', reverb: '◌', eq: '▤', warp: '✦',
-  stutter: '⊟', pixelate: '▦', timestretch: '⟿', freeze: '❄',
+  stutter: '⊟', pixelate: '▦', timestretch: '⟿', freeze: '❄', harmonizer: '⋔',
 };
 
 const IMPORT_ACCENT = '#8fbaa9'; // sage — matches the source palette

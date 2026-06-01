@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { graphEngine } from '../engine/graphEngine';
 import { NODE_DEFS } from '../engine/nodeDefs';
-import { NOTES, getChordNotes } from '../engine/theory';
+import { NOTES, CHORD_TYPES, getChordNotes } from '../engine/theory';
 
 let nodeCounter = 0;
 let connCounter = 0;
@@ -62,27 +62,52 @@ function randomParams(type, key) {
   }
 }
 
+// Single-voice tonal sources voice ONE chord tone each (so collectively they
+// spell the chord), keyed off a stable per-node voice index.
+const SINGLE_VOICE = new Set(['oscillator', 'drift', 'grain']);
+const BASE_OCTAVE = { oscillator: 2, drift: 2, grain: 3 };
+
 // Shared in-key derivation used at BOTH node-creation time and global-key
 // retune time so a freshly-added source and a live-retuned one stay consistent.
+// `voiceIndex` is a stable per-node index used to spread single-voice sources
+// across the chord tones / harmonics instead of forcing unison.
 // Returns only the params that should change for the given global key; an empty
 // object means "leave defaults as-is" (e.g. unpitched noise, or no key).
-function keyOverrides(type, params, key) {
+function keyOverrides(type, params, key, voiceIndex = 0) {
   if (!key || !key.root) return {};
   const { root, chord } = key;
   switch (type) {
     case 'oscillator':
     case 'drift':
     case 'grain': {
+      // Assign this voice a single member of the chord (with octave spread when
+      // there are more voices than chord tones) so the ensemble voices the chord.
+      const intervals = (CHORD_TYPES[chord] && CHORD_TYPES[chord].length) ? CHORD_TYPES[chord] : [0];
+      const idx = ((voiceIndex % intervals.length) + intervals.length) % intervals.length;
+      const octaveBump = Math.floor(voiceIndex / intervals.length);
+      const rootIdx = NOTES.indexOf(root);
+      const total = rootIdx + intervals[idx];
+      const note = NOTES[((total % 12) + 12) % 12];
+      const baseOct = BASE_OCTAVE[type] ?? 2;
+      const octave = Math.max(1, Math.min(5, baseOct + Math.floor(total / 12) + octaveBump));
       const o = {};
-      if ('root' in params) o.root = root;
-      if ('chord' in params && chord) o.chord = chord;
+      if ('root' in params) o.root = note;
+      if ('chord' in params) o.chord = 'Root';   // each plays a single chord tone
+      if ('octave' in params) o.octave = octave;
       return o;
     }
-    case 'noteCycler': {
+    case 'noteCycler':
+    case 'synthSeq': {
       if (!Array.isArray(params.notes)) return {};
       const len = params.notes.length || 4;
       const cn = getChordNotes(root, 3, chord || 'add9');
       return { notes: Array.from({ length: len }, (_, i) => cn[i % cn.length]) };
+    }
+    case 'arp': {
+      const o = {};
+      if ('root' in params) o.root = root;
+      if ('chord' in params && chord) o.chord = chord;
+      return o;
     }
     case 'progression': {
       if (!Array.isArray(params.steps)) return {};
@@ -105,6 +130,7 @@ export function useGraph() {
   const [globalKey, setGlobalKeyState] = useState({ root: 'C', chord: 'add9' });
   const globalKeyRef = useRef({ root: 'C', chord: 'add9' });
   const idRef = useRef({});
+  const voiceCounterRef = useRef(0);   // monotonic index → stable chord-tone per single-voice node
 
   const init = useCallback(async () => {
     await graphEngine.init();
@@ -117,9 +143,13 @@ export function useGraph() {
     if (!def) return null;
     const id = `n${++nodeCounter}`;
     const params = { ...structuredClone(def.defaults) };
+    // Stable per-node voice index lets single-voice tonal sources each take a
+    // different chord tone (the ensemble voices the chord, not unison).
+    let voiceIndex = 0;
+    if (SINGLE_VOICE.has(type)) { voiceIndex = voiceCounterRef.current++; params._voice = voiceIndex; }
     // New source nodes inherit the current global key so they drop in on-key
     // (baked into both the audio handle and the React node state below).
-    Object.assign(params, keyOverrides(type, params, globalKeyRef.current));
+    Object.assign(params, keyOverrides(type, params, globalKeyRef.current, voiceIndex));
     graphEngine.addNode(id, type, params);
     const node = { id, type, x, y, params };
     setNodes((prev) => [...prev, node]);
@@ -174,6 +204,7 @@ export function useGraph() {
   // ── Clear everything: dispose all handles, empty the graph + mixer ──
   const clearAll = useCallback(() => {
     graphEngine.clearAll();
+    voiceCounterRef.current = 0;
     setNodes([]);
     setConnections([]);
   }, []);
@@ -183,7 +214,7 @@ export function useGraph() {
     globalKeyRef.current = next;
     setGlobalKeyState(next);
     setNodes((prev) => prev.map((n) => {
-      const ov = keyOverrides(n.type, n.params, next);
+      const ov = keyOverrides(n.type, n.params, next, n.params._voice ?? 0);
       if (!Object.keys(ov).length) return n;
       Object.entries(ov).forEach(([k, v]) => graphEngine.updateParam(n.id, k, v));
       return { ...n, params: { ...n.params, ...ov } };

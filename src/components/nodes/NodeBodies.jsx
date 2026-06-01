@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Knob, Segmented, MiniSlider, Stepper } from '../ui/Controls';
 import { NOTES, CHORD_TYPES } from '../../engine/theory';
+import { SYNTH_PRESETS } from '../../engine/nodeDefs';
 import { searchStations, AMBIENT_GENRES } from '../../utils/radioApi';
 
 const WAVES = [
@@ -102,8 +103,17 @@ export function NodeBody({ node, def, update, handle }) {
         </div>
       );
 
+    case 'sampler':
+      return <SamplerBody p={p} a={a} update={update} handle={handle} />;
+
     case 'noteCycler':
       return <NoteCyclerBody p={p} a={a} update={update} handle={handle} />;
+
+    case 'synthSeq':
+      return <SynthSeqBody p={p} a={a} update={update} handle={handle} />;
+
+    case 'arp':
+      return <ArpBody p={p} a={a} update={update} handle={handle} />;
 
     case 'progression':
       return <ProgressionBody p={p} a={a} update={update} handle={handle} />;
@@ -218,9 +228,122 @@ export function NodeBody({ node, def, update, handle }) {
         </KnobRow>
       );
 
+    case 'harmonizer':
+      return (
+        <KnobRow>
+          <Knob value={p.voices} min={1} max={4} step={1} onChange={(v) => update('voices', v)} label="voices" accent={a} format={(v) => `${Math.round(v)}`} />
+          <Knob value={p.interval} min={1} max={12} step={1} onChange={(v) => update('interval', v)} label="interval" accent={a} format={(v) => `${Math.round(v)}`} />
+          <Knob value={p.detune} min={0} max={30} step={1} onChange={(v) => update('detune', v)} label="detune" accent={a} format={(v) => `${Math.round(v)}`} />
+          <Knob value={p.mix} min={0} max={1} onChange={(v) => update('mix', v)} label="mix" accent={a} format={fPct} />
+        </KnobRow>
+      );
+
     default:
       return null;
   }
+}
+
+// ── Sampler ──
+function SamplerBody({ p, a, update, handle }) {
+  const fileRef = useRef(null);
+  const [name, setName] = useState(p.fileName || '');
+  const [dur, setDur] = useState(0);
+  useEffect(() => {
+    if (!handle) return;
+    handle.onLoaded = (fname, d) => { setName(fname || ''); setDur(d || 0); };
+    return () => { if (handle) handle.onLoaded = null; };
+  }, [handle]);
+
+  const onFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    update('fileName', file.name);
+    if (handle && handle.loadFile) handle.loadFile(file);
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <input ref={fileRef} type="file" accept="audio/wav,audio/mpeg,audio/ogg,audio/mp4,audio/x-m4a,.wav,.mp3,.ogg,.m4a" className="hidden" onChange={onFile} />
+      <button onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+        className="w-full py-2 rounded text-[10px] uppercase tracking-widest transition-all"
+        style={{ background: `${a}1f`, border: `1px solid ${a}66`, color: a }}>
+        {name ? '↺ replace file' : '⤓ load audio file'}
+      </button>
+      <div className="text-[9px] text-white/45 truncate">{name ? `${name}${dur ? ` · ${dur.toFixed(1)}s` : ''}` : 'wav · mp3 · ogg · m4a'}</div>
+      <Row>
+        <button onClick={(e) => { e.stopPropagation(); update('loop', !p.loop); }}
+          className="px-2 py-1 rounded text-[9px] uppercase tracking-widest transition-all"
+          style={{ background: p.loop ? `${a}22` : 'transparent', border: `1px solid ${p.loop ? a : '#333'}`, color: p.loop ? a : 'rgba(255,255,255,0.4)' }}>
+          ↻ loop
+        </button>
+        <Knob value={p.rate} min={0.25} max={2} onChange={(v) => update('rate', v)} label="speed" accent={a} format={(v) => `${v.toFixed(2)}x`} />
+        <Knob value={p.offset} min={0} max={0.99} onChange={(v) => update('offset', v)} label="start" accent={a} format={fPct} />
+        <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
+      </Row>
+    </div>
+  );
+}
+
+// ── Synth Sequencer (selectable preset voice) ──
+function SynthSeqBody({ p, a, update, handle }) {
+  const [root, setRoot] = useState('C');
+  const [oct, setOct] = useState(3);
+  const addNote = () => update('notes', [...p.notes, `${root}${oct}`]);
+  const removeNote = (i) => update('notes', p.notes.filter((_, idx) => idx !== i));
+  const presetOpts = SYNTH_PRESETS.map((v) => ({ value: v, label: v }));
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {p.notes.map((n, i) => (
+          <button key={i} onClick={(e) => { e.stopPropagation(); removeNote(i); }}
+            className="px-1.5 py-0.5 rounded text-[9px] font-cal" style={{ background: `${a}22`, color: a }}>
+            {n} ×
+          </button>
+        ))}
+      </div>
+      <Row>
+        <Stepper value={root} onChange={setRoot} options={NOTES} accent={a} />
+        <Stepper value={oct} onChange={setOct} options={OCTAVES} accent={a} />
+        <button onClick={(e) => { e.stopPropagation(); addNote(); }} className="px-2 py-0.5 rounded text-[9px] uppercase tracking-widest border border-white/10 text-white/50 hover:text-white/80">+ add</button>
+      </Row>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[8px] text-white/35 uppercase tracking-[0.15em]">voice</span>
+        <Segmented options={presetOpts} value={p.preset} onChange={(v) => update('preset', v)} accent={a} />
+      </div>
+      <Row>
+        <Segmented options={[{ value: 'up', label: 'up' }, { value: 'down', label: 'dn' }, { value: 'random', label: 'rnd' }]} value={p.mode} onChange={(v) => update('mode', v)} accent={a} />
+        <Stepper value={p.division} onChange={(v) => update('division', v)} options={DIVISIONS} accent={a} />
+      </Row>
+      <KnobRow>
+        <Knob value={p.gate} min={0.1} max={1} onChange={(v) => update('gate', v)} label="gate" accent={a} format={fPct} />
+        <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
+      </KnobRow>
+    </div>
+  );
+}
+
+// ── Arpeggiator ──
+function ArpBody({ p, a, update, handle }) {
+  const PATTERNS = [{ value: 'up', label: 'up' }, { value: 'down', label: 'dn' }, { value: 'updown', label: 'u/d' }, { value: 'random', label: 'rnd' }];
+  return (
+    <div className="space-y-2">
+      <Row>
+        <LabeledStepper label="note" value={p.root} onChange={(v) => update('root', v)} options={NOTES} accent={a} />
+        <LabeledStepper label="oct" value={p.octave} onChange={(v) => update('octave', v)} options={OCTAVES} accent={a} />
+        <LabeledStepper label="chord" value={p.chord} onChange={(v) => update('chord', v)} options={CHORD_KEYS} accent={a} wide />
+      </Row>
+      <Row>
+        <Segmented options={PATTERNS} value={p.pattern} onChange={(v) => update('pattern', v)} accent={a} />
+        <Stepper value={p.rate} onChange={(v) => update('rate', v)} options={DIVISIONS} accent={a} />
+      </Row>
+      <Segmented options={WAVES} value={p.wave} onChange={(v) => update('wave', v)} accent={a} />
+      <KnobRow>
+        <Knob value={p.octaves} min={1} max={4} step={1} onChange={(v) => update('octaves', v)} label="range" accent={a} format={(v) => `${Math.round(v)}`} />
+        <Knob value={p.gate} min={0.1} max={1} onChange={(v) => update('gate', v)} label="gate" accent={a} format={fPct} />
+        <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
+      </KnobRow>
+    </div>
+  );
 }
 
 // ── Sequencer (internal type key: noteCycler) ──
@@ -369,6 +492,81 @@ function StreamBody({ p, a, update, handle }) {
   );
 }
 
+// Draws a recorded loop's waveform on a canvas with draggable start/end handles
+// that set the playback region (fractions 0..1) used by the engine loop points.
+function WaveformEditor({ p, a, update, handle }) {
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const dragRef = useRef(null);
+
+  const draw = (buf) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W = canvas.width, H = canvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    if (!buf) return;
+    const data = buf.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / W));
+    ctx.strokeStyle = `${a}99`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < W; x++) {
+      let min = 1, max = -1;
+      for (let i = 0; i < step; i++) {
+        const v = data[x * step + i] || 0;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const y1 = (1 - (max + 1) / 2) * H;
+      const y2 = (1 - (min + 1) / 2) * H;
+      ctx.moveTo(x + 0.5, y1);
+      ctx.lineTo(x + 0.5, y2);
+    }
+    ctx.stroke();
+  };
+
+  useEffect(() => {
+    if (!handle) return;
+    const refresh = () => draw(handle.getBuffer && handle.getBuffer());
+    handle.onBuffer = () => refresh();
+    refresh();
+    return () => { if (handle) handle.onBuffer = null; };
+  }, [handle, a]);
+
+  const fracFromEvent = (e) => {
+    const rect = wrapRef.current.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  };
+  const onDown = (which) => (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    dragRef.current = which;
+    const move = (ev) => {
+      const f = fracFromEvent(ev);
+      if (dragRef.current === 'start') update('loopStart', Math.min(f, (p.loopEnd ?? 1) - 0.02));
+      else update('loopEnd', Math.max(f, (p.loopStart ?? 0) + 0.02));
+    };
+    const up = () => { dragRef.current = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const s = (p.loopStart ?? 0) * 100;
+  const e = (p.loopEnd ?? 1) * 100;
+  return (
+    <div ref={wrapRef} className="relative h-12 rounded overflow-hidden select-none"
+      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid #2a2a30' }}>
+      <canvas ref={canvasRef} width={206} height={48} className="absolute inset-0 w-full h-full" />
+      {/* dimmed regions outside the loop window */}
+      <div className="absolute top-0 bottom-0 left-0 bg-black/55" style={{ width: `${s}%` }} />
+      <div className="absolute top-0 bottom-0 right-0 bg-black/55" style={{ width: `${100 - e}%` }} />
+      <div className="absolute top-0 bottom-0 w-[3px] cursor-ew-resize" style={{ left: `${s}%`, background: a }} onPointerDown={onDown('start')} />
+      <div className="absolute top-0 bottom-0 w-[3px] cursor-ew-resize -ml-[3px]" style={{ left: `${e}%`, background: a }} onPointerDown={onDown('end')} />
+    </div>
+  );
+}
+
 // ── Looper ──
 function LooperBody({ p, a, update, handle }) {
   const [status, setStatus] = useState('idle');
@@ -382,6 +580,7 @@ function LooperBody({ p, a, update, handle }) {
       <div className="text-[9px] uppercase tracking-[0.15em]" style={{ color: a }}>
         {status === 'idle' ? 'route a source into ▸ in' : status}
       </div>
+      {hasLoop && <WaveformEditor p={p} a={a} update={update} handle={handle} />}
       <div className="flex gap-1.5">
         <button onClick={(e) => { e.stopPropagation(); recording ? handle.stopRecord() : handle.record(); }}
           className="flex-1 py-1.5 rounded text-[9px] uppercase tracking-widest transition-all"

@@ -30,10 +30,11 @@
 //                  envelopes for dominant colours (more drone-like).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { NOTES } from '../engine/theory';
+import { NOTES, getChordNotes } from '../engine/theory';
 
 // Wave options supported by makeOscSynth in nodeDefs.js.
 const WAVES = ['sine', 'triangle', 'sawtooth', 'square', 'fm', 'am'];
+const DIVISIONS = ['16n', '8n', '4n', '2n', '1n'];
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -129,25 +130,42 @@ function chordForMood(avgSat) {
   return 'sus2';
 }
 
-// Fallback rotation through the generator family, used only to guarantee
+// Fallback rotation through the FULL generator family, used only to guarantee
 // variety if a photo's regions would otherwise all collapse to one type.
-const TYPE_ROTATION = ['drift', 'grain', 'oscillator', 'noise'];
+const TYPE_ROTATION = ['drift', 'grain', 'oscillator', 'noteCycler', 'synthSeq', 'arp', 'noise'];
 
-// Pick a generator type from a region's texture + colour character:
-//   • hazy / desaturated       → Noise Bed
-//   • vivid, saturated colour   → Oscillator (defined tonal voice)
-//   • very smooth / low edge     → Drift Pad (lush evolving chord)
-//   • textured / grainy          → Grain Cloud
-//   • mid case                   → Drift (lighter) or Oscillator (darker)
-function pickType({ s, l, edge }) {
-  if (s < 0.18) return 'noise';
-  if (s > 0.55) return 'oscillator';
-  if (edge < 0.18) return 'drift';
-  if (edge >= 0.30) return 'grain';
-  return l > 0.5 ? 'drift' : 'oscillator';
+// Pick a generator type from a region's texture + colour character. The wider
+// pool means different images reach for different voices:
+//   • hazy / desaturated         → Noise Bed
+//   • very textured + vivid       → Synth Sequencer / Grain Cloud
+//   • textured                    → Arpeggiator (bright) / Sequencer (dark)
+//   • very smooth / low edge       → Drift Pad (light) / Oscillator (dark)
+//   • vivid, saturated colour      → Oscillator (defined tonal voice)
+function pickType({ s, l, edge }, i) {
+  if (s < 0.14) return 'noise';
+  if (edge > 0.55) return s > 0.45 ? 'synthSeq' : 'grain';
+  if (edge > 0.36) return l > 0.5 ? 'arp' : 'noteCycler';
+  if (edge < 0.16) return l > 0.55 ? 'drift' : 'oscillator';
+  if (s > 0.6) return 'oscillator';
+  return i % 2 === 0 ? 'drift' : 'grain';
 }
 
-// Build a node-param descriptor containing ONLY the keys valid for `type`
+// Pick a synthSeq preset voice from a region's character.
+function pickPreset(f) {
+  if (f.edge > 0.5) return 'pluck';
+  if (f.l > 0.6) return 'bell';
+  if (f.l < 0.35) return 'bass';
+  if (f.s > 0.5) return 'keys';
+  return 'pad';
+}
+
+// In-key note list for sequence-type generators.
+function genNotes(root, octave, chord, n) {
+  const cn = getChordNotes(root, octave, chord);
+  return Array.from({ length: n }, (_, i) => cn[i % cn.length]);
+}
+
+// Build a { type, params } descriptor containing ONLY the keys valid for `type`
 // (matching each source's defaults in nodeDefs.js), tailored from the region's
 // colour/shape features. Long, lush envelopes are kept wherever supported.
 function buildDescriptor(type, f, sharedChord) {
@@ -158,57 +176,116 @@ function buildDescriptor(type, f, sharedChord) {
   const pan = clamp(centroidX * 2 - 1, -1, 1);
   const attack = clamp(2 + warm * 3 + coverage * 3, 1.5, 8);
   const release = clamp(4 + coverage * 6 + warm * 3, 3, 14);
+  const division = DIVISIONS[clamp(Math.round((1 - edge) * (DIVISIONS.length - 1)), 0, DIVISIONS.length - 1)];
 
   switch (type) {
     case 'drift':
-      // width (chorus depth) ← saturation; drift (chorus rate) ← edge energy.
-      return {
-        type, root, octave: clamp(baseOct - 1, 1, 3), chord: sharedChord,
+      return { type, params: {
+        root, octave: clamp(baseOct - 1, 1, 3), chord: sharedChord,
         spread: clamp(0.3 + s * 0.6, 0.2, 0.95),
         motion: clamp(0.05 + edge * 0.5, 0.03, 0.6),
         level, pan,
         attack: clamp(attack + 1, 2, 9), release: clamp(release + 2, 4, 16),
-      };
+      } };
     case 'grain':
-      // density / pitch-drift / shimmer ← edge energy + saturation.
-      return {
-        type, root, octave: clamp(baseOct, 2, 4), chord: sharedChord,
+      return { type, params: {
+        root, octave: clamp(baseOct, 2, 4), chord: sharedChord,
         density: clamp(Math.round(3 + edge * 5), 2, 8),
         drift: Math.round(clamp(6 + edge * 30 + s * 10, 4, 45)),
         shimmer: clamp(0.2 + edge * 0.6, 0.1, 0.9),
         level, pan, attack, release,
-      };
+      } };
     case 'noise': {
-      // color ← hue warmth (warm→brown, mid→pink, cool→white);
-      // cutoff ← brightness; motion ← edge energy.
       const color = warm > 0.62 ? 'brown' : (warm < 0.38 ? 'white' : 'pink');
-      return {
-        type, color,
+      return { type, params: {
+        color,
         cutoff: Math.round(clamp(200 + l * 3200 + (1 - warm) * 1400, 200, 6000)),
         q: clamp(0.6 + s * 3, 0.4, 5),
         motion: clamp(0.03 + edge * 0.5, 0.02, 0.6),
         level: clamp(level * 0.9, 0.14, 0.5), pan,
         attack: clamp(attack + 1, 2, 9), release: clamp(release + 1, 3, 14),
-      };
+      } };
     }
+    case 'noteCycler':
+      return { type, params: {
+        notes: genNotes(root, clamp(baseOct, 2, 4), sharedChord, clamp(3 + Math.round(edge * 3), 3, 6)),
+        division, mode: edge > 0.45 ? 'random' : 'up',
+        wave: waveForEdge(edge, s), gate: clamp(0.6 + (1 - edge) * 0.35, 0.5, 0.95),
+        level, pan,
+      } };
+    case 'synthSeq':
+      return { type, params: {
+        notes: genNotes(root, clamp(baseOct, 2, 4), sharedChord, clamp(3 + Math.round(edge * 3), 3, 6)),
+        division, mode: edge > 0.5 ? 'random' : 'up', preset: pickPreset(f),
+        gate: clamp(0.5 + (1 - edge) * 0.4, 0.4, 0.9), level, pan,
+      } };
+    case 'arp':
+      return { type, params: {
+        root, octave: clamp(baseOct, 2, 4), chord: sharedChord,
+        pattern: edge > 0.5 ? 'updown' : 'up', rate: division,
+        octaves: clamp(1 + Math.round(coverage * 3), 1, 3),
+        wave: waveForEdge(edge, s), gate: clamp(0.4 + (1 - edge) * 0.4, 0.35, 0.85),
+        level, pan,
+      } };
     case 'oscillator':
     default:
-      // defined tonal voice; soft wave ← edge energy, detune ← saturation.
-      return {
-        type: 'oscillator', wave: waveForEdge(edge, s), root, octave: baseOct,
+      return { type: 'oscillator', params: {
+        wave: waveForEdge(edge, s), root, octave: baseOct,
         chord: sharedChord, level, pan, attack, release,
         detune: Math.round((s * 2 - 1) * 18),
-      };
+      } };
   }
 }
 
+// Choose a 2–4 effect chain from the image's overall character. The last effect
+// is always a reverb (so the chain terminates into one ambient wash → master).
+// Different brightness / texture / saturation profiles yield different chains.
+function pickEffects({ avgSat, avgEdge, avgLight, warmAvg }) {
+  const fx = [];
+  // Tone shaping from warmth / brightness.
+  if (warmAvg > 0.55) {
+    fx.push({ type: 'filter', params: { type: 'lowpass', cutoff: Math.round(clamp(1200 + avgLight * 5000, 600, 8000)), resonance: clamp(0.5 + avgSat * 3, 0.3, 6) } });
+  } else if (avgLight > 0.6) {
+    fx.push({ type: 'eq', params: { low: -2, mid: 1, high: Math.round(clamp(avgLight * 6, 0, 6)) } });
+  }
+  // Texture → glitch / grit / echo.
+  if (avgEdge > 0.45) {
+    fx.push(avgSat > 0.5
+      ? { type: 'stutter', params: { rate: '8n', depth: clamp(0.4 + avgEdge * 0.5, 0.3, 0.95), mix: clamp(0.3 + avgEdge * 0.4, 0.2, 0.7) } }
+      : { type: 'pixelate', params: { bits: Math.round(clamp(8 - avgEdge * 5, 2, 8)), rate: Math.round(clamp(8000 - avgEdge * 6000, 1200, 8000)), mix: clamp(0.3 + avgEdge * 0.3, 0.2, 0.6) } });
+  } else if (avgEdge > 0.28) {
+    fx.push({ type: 'delay', params: { time: '4n', feedback: clamp(0.2 + avgEdge * 0.5, 0.2, 0.7), wet: clamp(0.2 + avgEdge * 0.3, 0.2, 0.5) } });
+  }
+  // Darkness / haze → smear / spectral freeze.
+  if (avgLight < 0.4) {
+    fx.push(avgSat < 0.4
+      ? { type: 'freeze', params: { hold: clamp(0.85 + avgLight * 0.1, 0.8, 0.97), tone: Math.round(clamp(1500 + avgLight * 3000, 800, 5000)), mix: 0.5 } }
+      : { type: 'timestretch', params: { pitch: 0, window: clamp(0.1 + avgLight * 0.2, 0.05, 0.4), feedback: clamp(0.3 + avgSat * 0.4, 0.2, 0.7), mix: 0.5 } });
+  }
+  // Saturation → harmonic thickening or pitch warp.
+  if (avgSat > 0.55) {
+    fx.push({ type: 'harmonizer', params: { voices: avgSat > 0.7 ? 3 : 2, interval: warmAvg > 0.5 ? 7 : 5, detune: Math.round(clamp(avgSat * 12, 4, 16)), mix: clamp(0.3 + avgSat * 0.3, 0.3, 0.6) } });
+  } else if (avgSat > 0.35 && fx.length < 2) {
+    fx.push({ type: 'warp', params: { pitch: 0, depth: clamp(0.2 + avgSat * 0.4, 0.2, 0.6), mix: clamp(0.3 + avgSat * 0.3, 0.2, 0.6) } });
+  }
+  // Always glue with a reverb (kept last → routes into master).
+  const reverb = { type: 'reverb', params: { decay: clamp(4 + (1 - avgEdge) * 6 + avgLight * 3, 4, 13), wet: clamp(0.35 + (1 - avgEdge) * 0.25, 0.3, 0.65) } };
+  if (fx.length > 3) fx.length = 3;   // cap chain to 4 incl. reverb
+  fx.push(reverb);
+  return fx;
+}
+
+const mean = (arr, key) => (arr.length ? arr.reduce((s, f) => s + f[key], 0) / arr.length : 0);
+
 /**
- * Analyse an image and return an array of typed voice descriptors. Each has a
- * `type` ('grain' | 'drift' | 'noise' | 'oscillator') plus only the params
- * valid for that source type.
+ * Analyse an image and return `{ voices, effects }`.
+ *   voices  : Array<{ type, params }> — full generator palette (drift/grain/
+ *             oscillator/noise/noteCycler/synthSeq/arp).
+ *   effects : Array<{ type, params }> — a 2–4 node effect chain (ending in
+ *             reverb) drawn from the full effect palette by image character.
  * @param {File|Blob|HTMLImageElement|string} source
  * @param {{ maxVoices?: number }} [opts]
- * @returns {Promise<Array<object>>}
+ * @returns {Promise<{ voices: Array<object>, effects: Array<object> }>}
  */
 export async function imageToPatch(source, opts = {}) {
   const maxVoices = clamp(opts.maxVoices ?? 5, 3, 6);
@@ -236,7 +313,7 @@ export async function imageToPatch(source, opts = {}) {
       pxCount++;
     }
   }
-  if (!pxCount) return [];
+  if (!pxCount) return { voices: [], effects: [] };
   const avgSat = satSum / pxCount;
   const sharedChord = chordForMood(avgSat);
 
@@ -259,24 +336,33 @@ export async function imageToPatch(source, opts = {}) {
   });
 
   // Choose a generator type per region from its texture/colour character.
-  let types = feats.map(pickType);
-  // Guarantee variety: if the photo collapses everything to a single type,
-  // rotate through the generator family by index (still deterministic).
-  if (new Set(types).size === 1 && types.length >= 3) {
+  let types = feats.map((f, i) => pickType(f, i));
+  // Guarantee variety: if the photo collapses to < 2 distinct types, rotate
+  // through the full generator family by index (still deterministic).
+  if (new Set(types).size < 2 && types.length >= 3) {
     types = types.map((_, i) => TYPE_ROTATION[i % TYPE_ROTATION.length]);
   }
 
   const voices = feats.map((f, i) => buildDescriptor(types[i], f, sharedChord));
 
-  // Order low→high (octave for tonal types; noise has none → treat as mid) so
-  // the spawn cascade reads bass→treble.
-  voices.sort((a, b) => (a.octave ?? 3) - (b.octave ?? 3));
+  // Order low→high (octave for tonal types; others → treat as mid) so the
+  // spawn cascade reads bass→treble.
+  voices.sort((a, b) => (a.params.octave ?? 3) - (b.params.octave ?? 3));
 
   // Widen the stereo field across the voice set for an enveloping wash.
   const n = voices.length;
   voices.forEach((v, i) => {
     const spread = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
-    v.pan = clamp(v.pan * 0.4 + spread * 0.6, -1, 1);
+    v.params.pan = clamp((v.params.pan ?? 0) * 0.4 + spread * 0.6, -1, 1);
   });
-  return voices;
+
+  // Pick an effect chain from the overall image character.
+  const effects = pickEffects({
+    avgSat,
+    avgEdge: mean(feats, 'edge'),
+    avgLight: mean(feats, 'l'),
+    warmAvg: mean(feats, 'warm'),
+  });
+
+  return { voices, effects };
 }
