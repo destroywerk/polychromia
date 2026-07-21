@@ -72,21 +72,21 @@ h1, h2, h3, h4, .font-cal {
 /* ── Control surfaces + hover (from the Figma redesign) ──
    Default control fill: white @ 8%, 0.5px white @ 30% border, 8px radius,
    subtle drop shadow. Hover lifts the surface to white @ 16%. */
+/* Shared hover: 0.5px 8% white stroke + a soft 2px 8% white drop shadow. */
 .ctl {
   background: rgba(255, 255, 255, 0.08);
   border: 0.5px solid transparent;
   border-radius: 8px;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.24);
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
-.ctl:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.5); }
+.ctl:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.08); box-shadow: 0 0 2px rgba(255, 255, 255, 0.08); }
 /* Selected/active keeps a stroke. */
 .ctl.is-selected { border-color: rgba(255, 255, 255, 0.5); }
 .ctl-acc.is-selected { border-color: var(--acc, #8fbaa9); }
 
-/* Accent-bordered hover — module colour supplied via the --acc custom prop. */
-.ctl-acc { transition: background 0.15s ease, border-color 0.15s ease; }
-.ctl-acc:hover { background: rgba(255, 255, 255, 0.16); border-color: var(--acc, #8fbaa9); }
+.ctl-acc { transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+.ctl-acc:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.08); box-shadow: 0 0 2px rgba(255, 255, 255, 0.08); }
 
 /* Red/destructive control (Clear all, active Record). */
 .ctl-red {
@@ -94,23 +94,23 @@ h1, h2, h3, h4, .font-cal {
   border: 0.5px solid #b3261e;
   border-radius: 8px;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.24);
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
-.ctl-red:hover { background: rgba(179, 38, 30, 0.22); }
+.ctl-red:hover { background: rgba(179, 38, 30, 0.22); box-shadow: 0 0 2px rgba(255, 255, 255, 0.08); }
 
-/* Solid accent-filled button (transport play/pause) — brighten on hover. */
-.btn-accent { transition: filter 0.15s ease, opacity 0.15s ease; }
-.btn-accent:hover { filter: brightness(1.08); }
+/* Solid accent-filled button (transport play/pause). */
+.btn-accent { transition: filter 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+.btn-accent:hover { filter: brightness(1.08); box-shadow: 0 0 2px rgba(255, 255, 255, 0.08); }
 
-/* Palette list item: default fill, accent border + solid affordance on hover. */
+/* Palette list item: default fill, hover stroke + shadow, solid affordance on hover. */
 .pal-item {
   background: rgba(255, 255, 255, 0.08);
   border: 0.5px solid transparent;
   border-radius: 8px;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.24);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.pal-item:hover { background: rgba(255, 255, 255, 0.16); border-color: var(--acc, #8fbaa9); }
+.pal-item:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.08); box-shadow: 0 0 2px rgba(255, 255, 255, 0.08); }
 .pal-plus { opacity: 0.5; transition: opacity 0.15s ease; }
 .pal-item:hover .pal-plus { opacity: 1; }
 
