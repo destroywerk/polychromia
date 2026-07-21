@@ -20,7 +20,7 @@ function StartOverlay({ onStart }) {
       <div className="relative flex flex-col items-center text-center px-6">
         {/* Mark + wordmark */}
         <div className="flex items-center gap-6">
-          <img src={polyMark} alt="" aria-hidden="true" className="w-[132px] h-[132px] object-contain" draggable="false" />
+          <img src={polyMark} alt="" aria-hidden="true" className="h-[124px] w-auto" draggable="false" />
           <h1 className="font-cal text-white tracking-tight leading-none" style={{ fontSize: 70 }}>Polychromia</h1>
         </div>
 
