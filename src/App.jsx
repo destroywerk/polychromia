@@ -29,7 +29,7 @@ function StartOverlay({ onStart }) {
 
         {/* Subtext — 50% */}
         <p className="mt-7 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 564, color: 'rgba(255,255,255,0.5)' }}>
-          Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, loopers and radio streams together on a modular canvas. Shape everything with effects and motion.
+          Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, loopers and radio streams together on a modular canvas and shape with effects &amp; motion.
         </p>
 
         <button onClick={onStart}
