@@ -4,6 +4,7 @@ import { Canvas } from './components/canvas/Canvas';
 import { NodePalette } from './components/panels/NodePalette';
 import { Transport } from './components/panels/Transport';
 import { Mixer } from './components/panels/Mixer';
+import { HamburgerButton } from './components/ui/icons';
 import { imageToPatch } from './utils/imageToPatch';
 
 function StartOverlay({ onStart }) {
@@ -120,18 +121,15 @@ export default function App() {
       <div className="fixed inset-0">
         <Canvas graph={graph} viewportRef={viewportRef} />
 
-        {/* Palette toggle */}
-        <button onClick={() => setPaletteOpen((o) => !o)}
-          className="ctl absolute top-3 z-30 w-9 h-9 flex items-center justify-center"
-          style={{ left: paletteOpen ? 280 : 12, color: 'rgba(255,255,255,0.7)' }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="2" y="3" width="10" height="1" rx="0.5" fill="currentColor" />
-            <rect x="2" y="6.5" width="10" height="1" rx="0.5" fill="currentColor" />
-            <rect x="2" y="10" width="10" height="1" rx="0.5" fill="currentColor" />
-          </svg>
-        </button>
+        {/* Palette toggle — floats only when the palette is collapsed; when open
+            it lives inside the panel header (see NodePalette). */}
+        {!paletteOpen && (
+          <HamburgerButton onClick={() => setPaletteOpen(true)} title="Open panel"
+            className="absolute top-4 left-4 z-30" />
+        )}
 
-        <NodePalette onAdd={handleAdd} onImportImage={handleImportImage} open={paletteOpen} />
+        <NodePalette onAdd={handleAdd} onImportImage={handleImportImage} open={paletteOpen}
+          onToggle={() => setPaletteOpen(false)} />
 
         {/* Right cluster: transport + mixer. The column itself ignores pointer
             events so the canvas stays draggable behind any empty space; only the

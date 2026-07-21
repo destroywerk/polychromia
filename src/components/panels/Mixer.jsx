@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NODE_DEFS } from '../../engine/nodeDefs';
+import { CollapseButton } from '../ui/icons';
 
 const SOURCE_CATS = new Set(['source', 'sequence', 'stream', 'looper']);
 
@@ -101,7 +102,7 @@ export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, set
       <div className="rounded-lg px-3 py-2.5 flex items-center gap-2" style={panelStyle}>
         <div className="ui-label text-[9px] flex-1">Mixer</div>
         <span className="ui-value text-[9px]">{channels.length}</span>
-        <button onClick={onToggleCollapse} title="Expand" className="text-white/40 hover:text-white/80 leading-none" style={{ fontSize: 12 }}>⌄</button>
+        <CollapseButton collapsed onClick={onToggleCollapse} title="Expand" />
       </div>
     );
   }
@@ -110,13 +111,12 @@ export function Mixer({ nodes, updateParam, engine, setNodeEnabled, setMute, set
     <div className="rounded-lg p-3" style={panelStyle}>
       <div className="flex items-center justify-between mb-2.5">
         <div className="ui-label text-[9px]">Mixer</div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-5">
           <button onClick={onToggleExpand} title={expanded ? 'Compact view' : 'Detailed view'}
-            className="ui-label text-[9px] hover:text-white flex items-center gap-1">
+            className="ui-label text-[9px] hover:text-white hover:underline">
             {expanded ? 'Compact' : 'Detail'}
-            <span style={{ fontSize: 11, lineHeight: 1 }}>{expanded ? '⤡' : '⤢'}</span>
           </button>
-          <button onClick={onToggleCollapse} title="Collapse" className="text-white/40 hover:text-white/80 leading-none" style={{ fontSize: 12 }}>⌃</button>
+          <CollapseButton collapsed={false} onClick={onToggleCollapse} title="Collapse" />
         </div>
       </div>
 

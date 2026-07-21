@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Stepper } from '../ui/Controls';
+import { CollapseButton } from '../ui/icons';
 import { NOTES } from '../../engine/theory';
 
 const KEY_CHORDS = ['Root', '5', 'add9', 'maj7', 'min7', 'm11', 'sus2', 'maj9'];
@@ -29,7 +30,7 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
       <div className="rounded-lg px-3 py-2.5 flex items-center gap-2" style={panelStyle}>
         <div className="ui-label text-[9px] flex-1">Controls</div>
         <MiniPlay playing={playing} onPlay={onPlay} onPause={onPause} />
-        <button onClick={onToggleCollapse} title="Expand" className="text-white/40 hover:text-white/80 leading-none" style={{ fontSize: 12 }}>⌄</button>
+        <CollapseButton collapsed onClick={onToggleCollapse} title="Expand" />
       </div>
     );
   }
@@ -38,7 +39,7 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
     <div className="rounded-lg p-3 space-y-3.5" style={panelStyle}>
       <div className="flex items-center justify-between">
         <div className="ui-label text-[9px]">Controls</div>
-        <button onClick={onToggleCollapse} title="Collapse" className="text-white/40 hover:text-white/80 leading-none" style={{ fontSize: 12 }}>⌃</button>
+        <CollapseButton collapsed={false} onClick={onToggleCollapse} title="Collapse" />
       </div>
 
       {/* Transport buttons — play (solid sage) + stop (neutral) */}

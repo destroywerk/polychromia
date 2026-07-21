@@ -1,5 +1,7 @@
 import React, { useRef } from 'react';
 import { NODE_DEFS, NODE_CATEGORIES } from '../../engine/nodeDefs';
+import imageIcon from '../../assets/image-icon.svg';
+import { HamburgerButton } from '../ui/icons';
 
 const ICONS = {
   oscillator: '∿', drift: '◍', grain: '∷', noise: '▒', sampler: '◼',
@@ -10,7 +12,7 @@ const ICONS = {
 
 const IMPORT_ACCENT = '#8fbaa9'; // sage — matches the source palette
 
-export function NodePalette({ onAdd, onImportImage, open }) {
+export function NodePalette({ onAdd, onImportImage, open, onToggle }) {
   const fileRef = useRef(null);
   if (!open) return null;
 
@@ -23,8 +25,9 @@ export function NodePalette({ onAdd, onImportImage, open }) {
   return (
     <div className="absolute left-0 top-0 bottom-0 w-[264px] pl-5 pr-3 py-4 overflow-y-auto z-20 no-select"
       style={{ background: 'rgba(25,28,32,0.6)', backdropFilter: 'blur(12px)' }}>
-      <div className="mb-5">
+      <div className="mb-5 flex items-center justify-between">
         <h2 className="font-cal text-white leading-none" style={{ fontSize: 20 }}>Polychromia</h2>
+        {onToggle && <HamburgerButton onClick={onToggle} title="Collapse panel" />}
       </div>
 
       {/* Photo → Patch */}
@@ -36,7 +39,7 @@ export function NodePalette({ onAdd, onImportImage, open }) {
             className="pal-item w-full flex items-center h-[60px] pl-[18px] pr-3"
             style={{ '--acc': IMPORT_ACCENT }}
           >
-            <span className="w-6 text-center text-2xl leading-none" style={{ color: IMPORT_ACCENT }}>◳</span>
+            <img src={imageIcon} alt="" aria-hidden="true" className="w-6 h-6" />
             <span className="font-cal text-white ml-[18px]" style={{ fontSize: 14 }}>Import image</span>
             <span className="pal-plus ml-auto text-sm" style={{ color: IMPORT_ACCENT }}>↑</span>
           </button>

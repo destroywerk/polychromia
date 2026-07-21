@@ -15,17 +15,43 @@ const randInt = (a, b) => Math.floor(rand(a, b + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const r2 = (v) => +v.toFixed(2);
 
+// Build a pool of harmonically-relevant notes for a key+chord across a low–mid
+// octave range (deduped, sorted low→high). Used to spread tonal sources across
+// the harmony — on both key change and randomise — instead of forcing unison.
+function harmonicPool(key) {
+  const root = key?.root || 'C';
+  const chord = (key && CHORD_TYPES[key.chord] && CHORD_TYPES[key.chord].length) ? key.chord : 'add9';
+  const seen = new Set();
+  const pool = [];
+  [2, 3, 4].forEach((o) => getChordNotes(root, o, chord).forEach((n) => { if (!seen.has(n)) { seen.add(n); pool.push(n); } }));
+  const midi = (s) => { const m = /^([A-G]#?)(-?\d)$/.exec(s); return m ? NOTES.indexOf(m[1]) + (parseInt(m[2], 10) + 1) * 12 : 0; };
+  pool.sort((a, b) => midi(a) - midi(b));
+  return pool.length ? pool : ['C3'];
+}
+// Split a note string like "D#3" into { root, octave } clamped to a sane range.
+function splitNote(s) {
+  const m = /^([A-G]#?)(-?\d)$/.exec(s) || [null, 'C', '3'];
+  return { root: m[1], octave: Math.max(1, Math.min(5, parseInt(m[2], 10))) };
+}
+
 // Re-roll a single node's params toward musical, ambient values, constrained
 // to the current global key where it matters (so the patch stays in key).
 function randomParams(type, key) {
   const root = key?.root || 'C';
+  const pool = harmonicPool(key);
   switch (type) {
-    case 'oscillator':
-      return { wave: pick(SOFT_WAVES), root, octave: randInt(1, 4), chord: pick(AMBIENT_CHORDS), detune: Math.round(rand(-14, 14)), level: r2(rand(0.3, 0.6)), pan: r2(rand(-0.7, 0.7)), attack: r2(rand(1.5, 6)), release: r2(rand(3, 10)) };
-    case 'drift':
-      return { root, octave: randInt(1, 3), chord: pick(AMBIENT_CHORDS), spread: r2(rand(0.3, 0.9)), motion: r2(rand(0.05, 0.5)), level: r2(rand(0.3, 0.6)), pan: r2(rand(-0.6, 0.6)), attack: r2(rand(2, 7)), release: r2(rand(4, 12)) };
-    case 'grain':
-      return { root, octave: randInt(2, 4), chord: pick(AMBIENT_CHORDS), density: randInt(3, 7), drift: randInt(6, 30), shimmer: r2(rand(0.2, 0.7)), level: r2(rand(0.25, 0.55)), pan: r2(rand(-0.7, 0.7)) };
+    case 'oscillator': {
+      const n = splitNote(pick(pool));
+      return { wave: pick(SOFT_WAVES), root: n.root, octave: n.octave, chord: 'Root', detune: Math.round(rand(-14, 14)), level: r2(rand(0.3, 0.6)), pan: r2(rand(-0.7, 0.7)), attack: r2(rand(1.5, 6)), release: r2(rand(3, 10)) };
+    }
+    case 'drift': {
+      const n = splitNote(pick(pool));
+      return { root: n.root, octave: n.octave, chord: 'Root', spread: r2(rand(0.3, 0.9)), motion: r2(rand(0.05, 0.5)), level: r2(rand(0.3, 0.6)), pan: r2(rand(-0.6, 0.6)), attack: r2(rand(2, 7)), release: r2(rand(4, 12)) };
+    }
+    case 'grain': {
+      const n = splitNote(pick(pool));
+      return { root: n.root, octave: n.octave, chord: 'Root', density: randInt(3, 7), drift: randInt(6, 30), shimmer: r2(rand(0.2, 0.7)), level: r2(rand(0.25, 0.55)), pan: r2(rand(-0.7, 0.7)) };
+    }
     case 'noise':
       return { color: pick(['pink', 'white', 'brown']), cutoff: Math.round(rand(200, 3000)), q: +rand(0.6, 4).toFixed(1), motion: r2(rand(0.03, 0.5)), level: r2(rand(0.2, 0.45)), pan: r2(rand(-0.7, 0.7)) };
     case 'noteCycler': {
@@ -62,15 +88,14 @@ function randomParams(type, key) {
   }
 }
 
-// Single-voice tonal sources voice ONE chord tone each (so collectively they
-// spell the chord), keyed off a stable per-node voice index.
+// Single-voice tonal sources voice ONE harmonic note each (so collectively they
+// spell the chord across a range), keyed off a stable per-node voice index.
 const SINGLE_VOICE = new Set(['oscillator', 'drift', 'grain']);
-const BASE_OCTAVE = { oscillator: 2, drift: 2, grain: 3 };
 
 // Shared in-key derivation used at BOTH node-creation time and global-key
 // retune time so a freshly-added source and a live-retuned one stay consistent.
-// `voiceIndex` is a stable per-node index used to spread single-voice sources
-// across the chord tones / harmonics instead of forcing unison.
+// `voiceIndex` spreads single-voice sources across the harmonic pool (chord
+// tones over a low–mid octave range) instead of forcing unison on the root.
 // Returns only the params that should change for the given global key; an empty
 // object means "leave defaults as-is" (e.g. unpitched noise, or no key).
 function keyOverrides(type, params, key, voiceIndex = 0) {
@@ -80,28 +105,24 @@ function keyOverrides(type, params, key, voiceIndex = 0) {
     case 'oscillator':
     case 'drift':
     case 'grain': {
-      // Assign this voice a single member of the chord (with octave spread when
-      // there are more voices than chord tones) so the ensemble voices the chord.
-      const intervals = (CHORD_TYPES[chord] && CHORD_TYPES[chord].length) ? CHORD_TYPES[chord] : [0];
-      const idx = ((voiceIndex % intervals.length) + intervals.length) % intervals.length;
-      const octaveBump = Math.floor(voiceIndex / intervals.length);
-      const rootIdx = NOTES.indexOf(root);
-      const total = rootIdx + intervals[idx];
-      const note = NOTES[((total % 12) + 12) % 12];
-      const baseOct = BASE_OCTAVE[type] ?? 2;
-      const octave = Math.max(1, Math.min(5, baseOct + Math.floor(total / 12) + octaveBump));
+      // Pick this voice's note from the harmonic pool so the ensemble voices
+      // the chord across a range rather than all sounding the same pitch.
+      const pool = harmonicPool(key);
+      const note = splitNote(pool[((voiceIndex % pool.length) + pool.length) % pool.length]);
       const o = {};
-      if ('root' in params) o.root = note;
-      if ('chord' in params) o.chord = 'Root';   // each plays a single chord tone
-      if ('octave' in params) o.octave = octave;
+      if ('root' in params) o.root = note.root;
+      if ('chord' in params) o.chord = 'Root';   // each plays a single harmonic tone
+      if ('octave' in params) o.octave = note.octave;
       return o;
     }
     case 'noteCycler':
     case 'synthSeq': {
       if (!Array.isArray(params.notes)) return {};
       const len = params.notes.length || 4;
-      const cn = getChordNotes(root, 3, chord || 'add9');
-      return { notes: Array.from({ length: len }, (_, i) => cn[i % cn.length]) };
+      // Draw the sequence from the full harmonic pool (across octaves) so it
+      // steps through harmonically-relevant notes in a range, not one octave.
+      const pool = harmonicPool(key);
+      return { notes: Array.from({ length: len }, (_, i) => pool[i % pool.length]) };
     }
     case 'arp': {
       const o = {};
@@ -213,8 +234,13 @@ export function useGraph() {
   const setGlobalKey = useCallback((next) => {
     globalKeyRef.current = next;
     setGlobalKeyState(next);
+    // Running index across single-voice tonal nodes guarantees they spread
+    // across the harmonic pool (in creation order), even if some predate the
+    // per-node voice index.
+    let vi = 0;
     setNodes((prev) => prev.map((n) => {
-      const ov = keyOverrides(n.type, n.params, next, n.params._voice ?? 0);
+      const idx = SINGLE_VOICE.has(n.type) ? vi++ : 0;
+      const ov = keyOverrides(n.type, n.params, next, idx);
       if (!Object.keys(ov).length) return n;
       Object.entries(ov).forEach(([k, v]) => graphEngine.updateParam(n.id, k, v));
       return { ...n, params: { ...n.params, ...ov } };
@@ -258,7 +284,7 @@ export function useGraph() {
     try { result = await graphEngine.stopRecording(); }
     catch (e) { console.error('stopRecording threw', e); setRecError('Export failed — see console'); }
     setIsRecording(false);
-    if (!result || !result.blob) { setRecError('No audio was captured'); return; }
+    if (!result || !result.blob) { setRecError('No audio captured — is the transport playing and a source audible?'); return; }
     const { blob, ext, degraded } = result;
     if (degraded) setRecError(`Saved as .${ext} (couldn't transcode to WAV)`);
     const url = URL.createObjectURL(blob);

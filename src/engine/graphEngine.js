@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { AudioWorkletNode as StdAudioWorkletNode, addAudioWorkletModule } from 'standardized-audio-context';
 import { NODE_DEFS } from './nodeDefs';
 
 // ── PCM WAV export helpers ───────────────────────────────────────────────
@@ -296,7 +297,9 @@ class GraphEngine {
     const blob = new Blob([RECORDER_WORKLET_SRC], { type: 'application/javascript' });
     const url = URL.createObjectURL(blob);
     try {
-      await rawCtx.audioWorklet.addModule(url);
+      // Use standardized-audio-context's loader so it matches Tone's wrapped
+      // context (the native ctx.audioWorklet.addModule is incompatible with it).
+      await addAudioWorkletModule(rawCtx, url);
       this._recWorkletReady = true;
       console.info('[rec] worklet module registered ✓');
     } finally {
@@ -310,7 +313,10 @@ class GraphEngine {
     this._recL = [];
     this._recR = [];
     this._recFrames = 0;
-    const node = new AudioWorkletNode(rawCtx, 'poly-recorder', {
+    // Construct via standardized-audio-context so the node is created against
+    // Tone's wrapped context (native AudioWorkletNode rejects that context with
+    // "parameter 1 is not of type 'BaseAudioContext'").
+    const node = new StdAudioWorkletNode(rawCtx, 'poly-recorder', {
       numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
     });
     node.port.onmessage = (ev) => {
