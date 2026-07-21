@@ -26,7 +26,7 @@ function KnobRow({ children }) { return <div className="flex justify-around gap-
 function LabeledStepper({ label, ...props }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[8px] text-white/35 uppercase tracking-[0.15em]">{label}</span>
+      <span className="ui-label text-[9px]">{label}</span>
       <Stepper {...props} />
     </div>
   );
@@ -150,7 +150,7 @@ export function NodeBody({ node, def, update, handle }) {
       return (
         <div className="space-y-2">
           <Row>
-            <span className="text-[8px] text-white/35 uppercase tracking-[0.12em]">time</span>
+            <span className="ui-label text-[9px]">time</span>
             <Stepper value={p.time} onChange={(v) => update('time', v)} options={DIVISIONS} accent={a} />
           </Row>
           <KnobRow>
@@ -190,7 +190,7 @@ export function NodeBody({ node, def, update, handle }) {
       return (
         <div className="space-y-2">
           <Row>
-            <span className="text-[8px] text-white/35 uppercase tracking-[0.12em]">rate</span>
+            <span className="ui-label text-[9px]">rate</span>
             <Stepper value={p.rate} onChange={(v) => update('rate', v)} options={DIVISIONS} accent={a} />
           </Row>
           <KnobRow>
@@ -265,15 +265,15 @@ function SamplerBody({ p, a, update, handle }) {
     <div className="space-y-2.5">
       <input ref={fileRef} type="file" accept="audio/wav,audio/mpeg,audio/ogg,audio/mp4,audio/x-m4a,.wav,.mp3,.ogg,.m4a" className="hidden" onChange={onFile} />
       <button onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
-        className="w-full py-2 rounded text-[10px] uppercase tracking-widest transition-all"
-        style={{ background: `${a}1f`, border: `1px solid ${a}66`, color: a }}>
-        {name ? '↺ replace file' : '⤓ load audio file'}
+        className="ui-value w-full py-2 rounded-lg text-[10px] transition-all"
+        style={{ background: `${a}1f`, border: `0.5px solid ${a}`, color: a }}>
+        {name ? '↺ Replace file' : '⤓ Load audio file'}
       </button>
-      <div className="text-[9px] text-white/45 truncate">{name ? `${name}${dur ? ` · ${dur.toFixed(1)}s` : ''}` : 'wav · mp3 · ogg · m4a'}</div>
+      <div className="ui-label text-[9px] truncate">{name ? `${name}${dur ? ` · ${dur.toFixed(1)}s` : ''}` : 'wav · mp3 · ogg · m4a'}</div>
       <Row>
         <button onClick={(e) => { e.stopPropagation(); update('loop', !p.loop); }}
-          className="px-2 py-1 rounded text-[9px] uppercase tracking-widest transition-all"
-          style={{ background: p.loop ? `${a}22` : 'transparent', border: `1px solid ${p.loop ? a : '#333'}`, color: p.loop ? a : 'rgba(255,255,255,0.4)' }}>
+          className={`ui-value px-2 py-1 rounded-lg text-[9px] transition-all ${p.loop ? '' : 'ctl ctl-acc'}`}
+          style={p.loop ? { background: `${a}22`, border: `0.5px solid ${a}`, color: a } : { '--acc': a, color: '#ffffff' }}>
           ↻ loop
         </button>
         <Knob value={p.rate} min={0.25} max={2} onChange={(v) => update('rate', v)} label="speed" accent={a} format={(v) => `${v.toFixed(2)}x`} />
@@ -304,10 +304,10 @@ function SynthSeqBody({ p, a, update, handle }) {
       <Row>
         <Stepper value={root} onChange={setRoot} options={NOTES} accent={a} />
         <Stepper value={oct} onChange={setOct} options={OCTAVES} accent={a} />
-        <button onClick={(e) => { e.stopPropagation(); addNote(); }} className="px-2 py-0.5 rounded text-[9px] uppercase tracking-widest border border-white/10 text-white/50 hover:text-white/80">+ add</button>
+        <button onClick={(e) => { e.stopPropagation(); addNote(); }} className="ctl ui-value px-2 py-0.5 rounded-lg text-[9px]">+ add</button>
       </Row>
       <div className="flex flex-col gap-0.5">
-        <span className="text-[8px] text-white/35 uppercase tracking-[0.15em]">voice</span>
+        <span className="ui-label text-[9px]">voice</span>
         <Segmented options={presetOpts} value={p.preset} onChange={(v) => update('preset', v)} accent={a} />
       </div>
       <Row>
@@ -366,7 +366,7 @@ function NoteCyclerBody({ p, a, update, handle }) {
       <Row>
         <Stepper value={root} onChange={setRoot} options={NOTES} accent={a} />
         <Stepper value={oct} onChange={setOct} options={OCTAVES} accent={a} />
-        <button onClick={(e) => { e.stopPropagation(); addNote(); }} className="px-2 py-0.5 rounded text-[9px] uppercase tracking-widest border border-white/10 text-white/50 hover:text-white/80">+ add</button>
+        <button onClick={(e) => { e.stopPropagation(); addNote(); }} className="ctl ui-value px-2 py-0.5 rounded-lg text-[9px]">+ add</button>
       </Row>
       <Row>
         <Segmented options={[{ value: 'up', label: 'up' }, { value: 'down', label: 'dn' }, { value: 'random', label: 'rnd' }]} value={p.mode} onChange={(v) => update('mode', v)} accent={a} />
@@ -407,9 +407,9 @@ function ProgressionBody({ p, a, update, handle }) {
         ))}
       </div>
       <Row>
-        <button onClick={(e) => { e.stopPropagation(); addStep(); }} className="px-2 py-0.5 rounded text-[9px] uppercase tracking-widest border border-white/10 text-white/50 hover:text-white/80">+ chord</button>
+        <button onClick={(e) => { e.stopPropagation(); addStep(); }} className="ctl ui-value px-2 py-0.5 rounded-lg text-[9px]">+ chord</button>
         <div className="flex items-center gap-1">
-          <span className="text-[8px] text-white/35 uppercase tracking-widest">beats</span>
+          <span className="ui-label text-[9px]">beats</span>
           <Stepper value={p.beats} onChange={(v) => update('beats', v)} options={[2, 4, 6, 8, 12, 16]} accent={a} />
         </div>
       </Row>
@@ -457,12 +457,12 @@ function StreamBody({ p, a, update, handle }) {
             <span className="text-[8px]">{playing ? '■' : '▶'}</span>
           </button>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] text-white/75 truncate">{p.stationName}</div>
+            <div className="ui-value text-[11px] truncate">{p.stationName}</div>
           </div>
-          <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} className="text-[8px] text-white/30 hover:text-white/60 uppercase tracking-widest">change</button>
+          <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} className="ui-label text-[9px] hover:text-white">change</button>
         </div>
       ) : (
-        <div className="text-[10px] text-white/30">Pick a station below</div>
+        <div className="ui-label text-[10px]">Pick a station below</div>
       )}
 
       {open && (
@@ -470,19 +470,19 @@ function StreamBody({ p, a, update, handle }) {
           <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
             {AMBIENT_GENRES.slice(0, 12).map((g) => (
               <button key={g} onClick={(e) => { e.stopPropagation(); setGenre(g); load(g); }}
-                className="text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wider"
-                style={{ border: `1px solid ${genre === g ? a : '#333'}`, color: genre === g ? a : '#666' }}>
+                className="ui-value text-[8px] px-1.5 py-0.5 rounded-full transition-colors"
+                style={{ border: `0.5px solid ${genre === g ? a : 'transparent'}`, color: genre === g ? a : 'rgba(255,255,255,0.8)' }}>
                 {g}
               </button>
             ))}
           </div>
           <div className="max-h-28 overflow-y-auto space-y-0.5">
-            {loading ? <div className="text-[10px] text-white/20 py-2 text-center">loading…</div>
+            {loading ? <div className="ui-label text-[10px] py-2 text-center">loading…</div>
               : results.map((st) => (
                 <button key={st.stationuuid} onClick={(e) => { e.stopPropagation(); pick(st); }}
                   className="block w-full text-left px-1.5 py-1 rounded hover:bg-white/5">
-                  <div className="text-[10px] text-white/65 truncate">{st.name}</div>
-                  <div className="text-[8px] text-white/25 truncate">{st.country}</div>
+                  <div className="ui-value text-[10px] truncate">{st.name}</div>
+                  <div className="ui-label text-[8px] truncate">{st.country}</div>
                 </button>
               ))}
           </div>
@@ -578,32 +578,32 @@ function LooperBody({ p, a, update, handle }) {
 
   return (
     <div className="space-y-2.5">
-      <div className="text-[9px] uppercase tracking-[0.15em]" style={{ color: a }}>
-        {status === 'idle' ? 'route a source into ▸ in' : status}
+      <div className="ui-value text-[9px]" style={{ color: a }}>
+        {status === 'idle' ? 'Route a source into ▸ in' : status}
       </div>
       {hasLoop && <WaveformEditor p={p} a={a} update={update} handle={handle} />}
       <div className="flex gap-1.5">
         <button onClick={(e) => { e.stopPropagation(); recording ? handle.stopRecord() : handle.record(); }}
-          className="flex-1 py-1.5 rounded text-[9px] uppercase tracking-widest transition-all"
-          style={{ background: recording ? '#d97a6a33' : 'rgba(255,255,255,0.04)', border: `1px solid ${recording ? '#d97a6a' : '#333'}`, color: recording ? '#d97a6a' : 'rgba(255,255,255,0.6)' }}>
+          className={`ui-value flex-1 py-1.5 rounded-lg text-[9px] transition-all ${recording ? '' : 'ctl'}`}
+          style={recording ? { background: '#b3261e28', border: '0.5px solid #b3261e', color: '#e08b83' } : { color: '#ffffff' }}>
           {recording ? '● stop rec' : '● record'}
         </button>
         <button onClick={(e) => { e.stopPropagation(); status === 'playing' ? handle.stopLoop() : handle.trigger(); }}
           disabled={!hasLoop}
-          className="flex-1 py-1.5 rounded text-[9px] uppercase tracking-widest transition-all disabled:opacity-30"
-          style={{ background: status === 'playing' ? `${a}33` : 'rgba(255,255,255,0.04)', border: `1px solid ${status === 'playing' ? a : '#333'}`, color: status === 'playing' ? a : 'rgba(255,255,255,0.6)' }}>
+          className={`ui-value flex-1 py-1.5 rounded-lg text-[9px] transition-all disabled:opacity-30 ${status === 'playing' ? '' : 'ctl ctl-acc'}`}
+          style={status === 'playing' ? { background: `${a}33`, border: `0.5px solid ${a}`, color: a } : { '--acc': a, color: '#ffffff' }}>
           {status === 'playing' ? '■ stop' : '▶ loop'}
         </button>
       </div>
       <Row>
         <button onClick={(e) => { e.stopPropagation(); update('reverse', !p.reverse); }}
-          className="px-2 py-1 rounded text-[9px] uppercase tracking-widest transition-all"
-          style={{ background: p.reverse ? `${a}22` : 'transparent', border: `1px solid ${p.reverse ? a : '#333'}`, color: p.reverse ? a : 'rgba(255,255,255,0.4)' }}>
+          className={`ui-value px-2 py-1 rounded-lg text-[9px] transition-all ${p.reverse ? '' : 'ctl ctl-acc'}`}
+          style={p.reverse ? { background: `${a}22`, border: `0.5px solid ${a}`, color: a } : { '--acc': a, color: '#ffffff' }}>
           ↺ reverse
         </button>
         <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
       </Row>
-      <div className="text-[8px] text-white/25 leading-relaxed">Chain effects after the ▸ out to process the loop.</div>
+      <div className="ui-label text-[8px] leading-relaxed">Chain effects after the ▸ out to process the loop.</div>
     </div>
   );
 }

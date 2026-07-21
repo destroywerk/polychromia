@@ -23,6 +23,13 @@ export function Canvas({ graph, viewportRef }) {
   const pendingRef = useRef(null);
   const panState = useRef(null);
 
+  // Effective (auto-grown) node widths reported by each NodeShell, so cables
+  // anchor to the real right edge when a node grows to fit its contents.
+  const [widths, setWidths] = useState({});
+  const onWidth = useCallback((id, w) => {
+    setWidths((prev) => (prev[id] === w ? prev : { ...prev, [id]: w }));
+  }, []);
+
   const toWorld = useCallback((clientX, clientY) => {
     const rect = ref.current.getBoundingClientRect();
     return { x: (clientX - rect.left - pan.x) / scale, y: (clientY - rect.top - pan.y) / scale };
@@ -95,20 +102,20 @@ export function Canvas({ graph, viewportRef }) {
       const fdef = NODE_DEFS[fn.type], tdef = NODE_DEFS[tn.type];
       const oi = fdef.outputs.findIndex((o) => o.id === c.from.port);
       const ii = tdef.inputs.findIndex((i) => i.id === c.to.port);
-      const a1 = portAnchor(fn, fdef, 'out', oi);
-      const a2 = portAnchor(tn, tdef, 'in', ii);
+      const a1 = portAnchor(fn, fdef, 'out', oi, widths[fn.id]);
+      const a2 = portAnchor(tn, tdef, 'in', ii, widths[tn.id]);
       return { id: c.id, d: cablePath(a1.x, a1.y, a2.x, a2.y), color: fdef.accent, kind: c.from.kind };
     }).filter(Boolean);
-  }, [graph.connections, nodeMap]);
+  }, [graph.connections, nodeMap, widths]);
 
   const pendingPath = useMemo(() => {
     if (!pending) return null;
     const def = NODE_DEFS[pending.node.type];
     const idx = pending.side === 'out' ? def.outputs.findIndex((o) => o.id === pending.port.id) : def.inputs.findIndex((i) => i.id === pending.port.id);
-    const a = portAnchor(pending.node, def, pending.side, idx);
+    const a = portAnchor(pending.node, def, pending.side, idx, widths[pending.node.id]);
     const d = pending.side === 'out' ? cablePath(a.x, a.y, pending.mouse.x, pending.mouse.y) : cablePath(pending.mouse.x, pending.mouse.y, a.x, a.y);
     return { d, color: def.accent };
-  }, [pending]);
+  }, [pending, widths]);
 
   return (
     <div
@@ -152,13 +159,16 @@ export function Canvas({ graph, viewportRef }) {
             onPortDown={onPortDown}
             onPortUp={onPortUp}
             filledPorts={filledPorts}
+            width={widths[node.id]}
+            onWidth={onWidth}
           />
         ))}
       </div>
 
       {/* Zoom indicator */}
-      <div className="absolute bottom-3 left-3 text-[9px] text-white/20 uppercase tracking-widest no-select">
-        {Math.round(scale * 100)}% · ⌘/Ctrl + scroll to zoom · drag bg to pan
+      <div className="absolute bottom-3 right-3 text-right no-select">
+        <div className="ui-label">Made by Tim Green. 2026.</div>
+        <div className="ui-label">{Math.round(scale * 100)}% · ⌘/Ctrl + scroll to zoom · drag bg to pan</div>
       </div>
     </div>
   );

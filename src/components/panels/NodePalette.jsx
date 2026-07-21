@@ -21,51 +21,45 @@ export function NodePalette({ onAdd, onImportImage, open }) {
   };
 
   return (
-    <div className="absolute left-3 top-3 bottom-3 w-52 rounded-xl p-3 overflow-y-auto z-20 no-select"
-      style={{ background: 'rgba(16,16,19,0.9)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(14px)' }}>
-      <div className="mb-3">
-        <h2 className="font-cal text-base text-white/90">Polychromia</h2>
-        <div className="text-[8px] text-white/30 uppercase tracking-[0.2em] mt-0.5">Modular Studio</div>
+    <div className="absolute left-0 top-0 bottom-0 w-[264px] pl-5 pr-3 py-4 overflow-y-auto z-20 no-select"
+      style={{ background: 'rgba(25,28,32,0.6)', backdropFilter: 'blur(12px)' }}>
+      <div className="mb-5">
+        <h2 className="font-cal text-white leading-none" style={{ fontSize: 20 }}>Polychromia</h2>
       </div>
 
       {/* Photo → Patch */}
       {onImportImage && (
-        <div className="mb-4">
-          <div className="text-[8px] text-white/30 uppercase tracking-[0.18em] mb-1.5">Photo → Patch</div>
+        <div className="mb-5">
           <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
           <button
             onClick={() => fileRef.current && fileRef.current.click()}
-            className="w-full flex items-center gap-2.5 px-2.5 py-4 rounded-lg transition-all group"
-            style={{ background: `${IMPORT_ACCENT}0d`, border: `1px solid ${IMPORT_ACCENT}33` }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${IMPORT_ACCENT}66`; e.currentTarget.style.background = `${IMPORT_ACCENT}18`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${IMPORT_ACCENT}33`; e.currentTarget.style.background = `${IMPORT_ACCENT}0d`; }}
+            className="pal-item w-full flex items-center h-[60px] pl-[18px] pr-3"
+            style={{ '--acc': IMPORT_ACCENT }}
           >
-            <span className="text-base w-4 text-center" style={{ color: IMPORT_ACCENT }}>◳</span>
-            <span className="font-cal text-[12px] text-white/85 group-hover:text-white">Import Image</span>
-            <span className="ml-auto text-white/25 group-hover:text-white/50 text-xs">↑</span>
+            <span className="w-6 text-center text-2xl leading-none" style={{ color: IMPORT_ACCENT }}>◳</span>
+            <span className="font-cal text-white ml-[18px]" style={{ fontSize: 14 }}>Import image</span>
+            <span className="pal-plus ml-auto text-sm" style={{ color: IMPORT_ACCENT }}>↑</span>
           </button>
-          <div className="text-[10px] text-white/55 mt-1.5 leading-snug">Turns a photo's colours &amp; shapes into a lush drone of generators.</div>
+          <div className="ui-label mt-2 leading-snug">Turn an image's colour and shape into a lush drone of generators.</div>
         </div>
       )}
 
       {NODE_CATEGORIES.map((cat) => (
-        <div key={cat.id} className="mb-4">
-          <div className="text-[8px] text-white/30 uppercase tracking-[0.18em] mb-1.5">{cat.label}</div>
-          <div className="space-y-1">
+        <div key={cat.id} className="mb-5">
+          <div className="ui-label text-[9px] mb-2">{cat.label}</div>
+          <div className="space-y-2">
             {cat.types.map((type) => {
               const def = NODE_DEFS[type];
               return (
                 <button
                   key={type}
                   onClick={() => onAdd(type)}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all group"
-                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${def.accent}44`; e.currentTarget.style.background = `${def.accent}0d`; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                  className="pal-item w-full flex items-center h-10 pl-3.5 pr-3"
+                  style={{ '--acc': def.accent }}
                 >
-                  <span className="text-sm w-4 text-center" style={{ color: def.accent }}>{ICONS[type]}</span>
-                  <span className="text-[11px] text-white/65 group-hover:text-white/90">{def.label}</span>
-                  <span className="ml-auto text-white/15 group-hover:text-white/40 text-xs">+</span>
+                  <span className="w-3 text-center text-sm leading-none" style={{ color: def.accent }}>{ICONS[type]}</span>
+                  <span className="ui-value text-[11px] ml-3.5">{def.label}</span>
+                  <span className="pal-plus ml-auto leading-none" style={{ color: '#ffffff', fontSize: 18 }}>+</span>
                 </button>
               );
             })}

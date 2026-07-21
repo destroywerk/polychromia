@@ -42,8 +42,8 @@ export function Knob({ value, min = 0, max = 1, step = 0.01, onChange, label, si
         <path d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`} fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" />
         <line x1={cx} y1={cy} x2={ix} y2={iy} stroke={accent} strokeWidth="1.5" strokeLinecap="round" />
       </svg>
-      {label && <span className="text-[8px] text-white/35 uppercase tracking-[0.15em]">{label}</span>}
-      {format && <span className="text-[9px] text-white/55 -mt-0.5">{format(value)}</span>}
+      {label && <span className="ui-label text-[9px]">{label}</span>}
+      {format && <span className="ui-value text-[9px] -mt-0.5">{format(value)}</span>}
     </div>
   );
 }
@@ -59,12 +59,10 @@ export function Segmented({ options, value, onChange, accent = '#8fbaa9' }) {
           <button
             key={v}
             onClick={(e) => { e.stopPropagation(); onChange(v); }}
-            className="px-2 py-1 rounded text-[9px] uppercase tracking-[0.12em] transition-all"
-            style={{
-              background: active ? `${accent}22` : 'rgba(255,255,255,0.03)',
-              color: active ? accent : 'rgba(255,255,255,0.4)',
-              border: `1px solid ${active ? `${accent}55` : 'transparent'}`,
-            }}
+            className={`ui-value px-2 py-1 text-[9px] ${active ? 'rounded-lg' : 'ctl ctl-acc'}`}
+            style={active
+              ? { background: `${accent}22`, color: accent, border: `0.5px solid ${accent}`, borderRadius: 8 }
+              : { '--acc': accent, color: 'rgba(255,255,255,0.8)' }}
           >
             {l}
           </button>
@@ -77,7 +75,7 @@ export function Segmented({ options, value, onChange, accent = '#8fbaa9' }) {
 export function MiniSlider({ value, min = 0, max = 1, step = 0.01, onChange, label, accent = '#8fbaa9', format }) {
   return (
     <div className="flex items-center gap-2">
-      {label && <span className="text-[8px] text-white/35 uppercase tracking-[0.12em] w-12 flex-shrink-0">{label}</span>}
+      {label && <span className="ui-label text-[9px] w-12 flex-shrink-0">{label}</span>}
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
@@ -85,12 +83,12 @@ export function MiniSlider({ value, min = 0, max = 1, step = 0.01, onChange, lab
         className="flex-1"
         style={{ accentColor: accent }}
       />
-      {format && <span className="text-[9px] text-white/45 w-8 text-right">{format(value)}</span>}
+      {format && <span className="ui-value text-[9px] w-8 text-right">{format(value)}</span>}
     </div>
   );
 }
 
-export function Stepper({ value, onChange, options, accent = '#8fbaa9', wide }) {
+export function Stepper({ value, onChange, options, accent = '#8fbaa9', wide, height }) {
   const idx = options.indexOf(value);
   const go = (dir) => { const ni = (idx + dir + options.length) % options.length; onChange(options[ni]); };
 
@@ -125,11 +123,11 @@ export function Stepper({ value, onChange, options, accent = '#8fbaa9', wide }) 
   }, [open]);
 
   return (
-    <div className="flex items-center justify-between rounded bg-white/3 border border-white/5" style={{ minWidth: wide ? 80 : 56 }}>
-      <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="px-1.5 py-0.5 text-white/30 hover:text-white/70 text-xs">‹</button>
+    <div className="ctl ctl-acc flex items-center justify-between" style={{ minWidth: wide ? 80 : 56, height, '--acc': accent }}>
+      <button onClick={(e) => { e.stopPropagation(); go(-1); }} className="px-1.5 py-0.5 text-white/40 hover:text-white/90 text-xs">‹</button>
       <button ref={valRef} onPointerDown={(e) => e.stopPropagation()} onClick={toggle}
-        title="Click to choose" className="text-[10px] font-cal px-1 leading-none cursor-pointer hover:opacity-80" style={{ color: accent }}>{value}</button>
-      <button onClick={(e) => { e.stopPropagation(); go(1); }} className="px-1.5 py-0.5 text-white/30 hover:text-white/70 text-xs">›</button>
+        title="Click to choose" className="ui-value text-[10px] px-1 leading-none cursor-pointer hover:opacity-80">{value}</button>
+      <button onClick={(e) => { e.stopPropagation(); go(1); }} className="px-1.5 py-0.5 text-white/40 hover:text-white/90 text-xs">›</button>
       {open && pos && createPortal(
         <div ref={popRef} onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}
           className="fixed rounded-lg p-1 no-select"
@@ -143,8 +141,8 @@ export function Stepper({ value, onChange, options, accent = '#8fbaa9', wide }) 
             const active = opt === value;
             return (
               <button key={String(opt)} onClick={(e) => { e.stopPropagation(); onChange(opt); setOpen(false); }}
-                className="block w-full text-left px-2 py-1 rounded text-[10px] font-cal transition-colors"
-                style={{ color: active ? accent : 'rgba(255,255,255,0.65)', background: active ? `${accent}22` : 'transparent' }}
+                className="block w-full text-left px-2 py-1 rounded text-[12px] font-cal transition-colors"
+                style={{ color: active ? accent : 'rgba(255,255,255,0.8)', background: active ? `${accent}22` : 'transparent' }}
                 onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                 onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
                 {opt}

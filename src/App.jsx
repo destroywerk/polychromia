@@ -15,23 +15,21 @@ function StartOverlay({ onStart }) {
         <div className="absolute bottom-1/3 right-1/4 w-72 h-72 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #9a93d4 0%, transparent 70%)', filter: 'blur(60px)', animation: 'breathe 9s ease-in-out infinite 2s' }} />
         <div className="absolute top-1/2 right-1/3 w-56 h-56 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #d48fb0 0%, transparent 70%)', filter: 'blur(50px)', animation: 'breathe 11s ease-in-out infinite 1s' }} />
       </div>
-      <div className="relative text-center space-y-8 px-8">
-        <div>
-          <h1 className="font-cal text-7xl text-white tracking-tight mb-3">Polychromia</h1>
-          <div className="flex items-center justify-center gap-3">
-            <div className="h-px w-10 bg-white/10" />
-            <span className="text-[10px] text-white/30 uppercase tracking-[0.35em]">Modular Drone & Ambient Studio</span>
-            <div className="h-px w-10 bg-white/10" />
+      <div className="relative w-full max-w-[1120px] mx-auto px-14">
+        <div className="max-w-[470px]">
+          <h1 className="font-cal text-white tracking-tight leading-[0.95]" style={{ fontSize: 70 }}>Polychromia</h1>
+          <div className="ui-label mt-3 ml-[168px]" style={{ fontSize: 14.5 }}>Form as sound.</div>
+          <p className="ui-label mt-9 leading-relaxed" style={{ fontSize: 14, maxWidth: 397 }}>
+            Upload an image to translate it into audio. Patch oscillators, sequencers, loopers and radio streams together on a modular canvas. Shape everything with effects and motion.
+          </p>
+          <div className="mt-7" style={{ width: 400 }}>
+            <div className="h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
           </div>
+          <button onClick={onStart}
+            className="ctl mt-9 h-[60px] w-[215px] rounded-lg flex items-center justify-center">
+            <span className="ui-value" style={{ fontSize: 20 }}>Enter studio</span>
+          </button>
         </div>
-        <p className="text-white/30 text-sm leading-relaxed font-inter mx-auto" style={{ maxWidth: 380 }}>
-          Patch oscillators, sequencers, loopers and radio streams together on a modular canvas. Shape everything with effects, modulation and motion.
-        </p>
-        <button onClick={onStart}
-          className="block w-52 mx-auto py-3 rounded-full text-xs uppercase tracking-[0.25em] transition-all hover:opacity-90"
-          style={{ background: 'rgba(143,186,169,0.14)', border: '1px solid rgba(143,186,169,0.35)', color: '#8fbaa9' }}>
-          Enter Studio
-        </button>
       </div>
     </div>
   );
@@ -41,7 +39,7 @@ export default function App() {
   const graph = useGraph();
   const [started, setStarted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
-  const [mixerExpanded, setMixerExpanded] = useState(false);
+  const [mixerExpanded, setMixerExpanded] = useState(true);
   const [transportCollapsed, setTransportCollapsed] = useState(false);
   const [mixerCollapsed, setMixerCollapsed] = useState(false);
   const cascade = useRef(0);
@@ -55,7 +53,7 @@ export default function App() {
   // with a small cascade so consecutive adds don't perfectly overlap.
   const spawnPoint = useCallback(() => {
     const { pan, scale } = viewportRef.current;
-    const leftOcc = paletteOpen ? 224 : 24;
+    const leftOcc = paletteOpen ? 288 : 24;
     const rightOcc = ((mixerExpanded && !mixerCollapsed) ? 320 : 240) + 24;
     const cx = (leftOcc + (window.innerWidth - rightOcc)) / 2;
     const cy = Math.max(140, window.innerHeight * 0.42);
@@ -124,8 +122,8 @@ export default function App() {
 
         {/* Palette toggle */}
         <button onClick={() => setPaletteOpen((o) => !o)}
-          className="absolute top-3 z-30 w-9 h-9 rounded-lg flex items-center justify-center transition-all"
-          style={{ left: paletteOpen ? 232 : 12, background: 'rgba(16,16,19,0.9)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+          className="ctl absolute top-3 z-30 w-9 h-9 flex items-center justify-center"
+          style={{ left: paletteOpen ? 280 : 12, color: 'rgba(255,255,255,0.7)' }}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <rect x="2" y="3" width="10" height="1" rx="0.5" fill="currentColor" />
             <rect x="2" y="6.5" width="10" height="1" rx="0.5" fill="currentColor" />
@@ -163,8 +161,8 @@ export default function App() {
         {graph.nodes.length === 0 && started && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
-              <div className="text-white/10 text-5xl mb-3 font-cal">∿</div>
-              <div className="text-white/25 text-sm font-inter">Add a node from the left panel to begin patching</div>
+            <div className="text-white/10 text-8xl mb-5 font-cal">∿</div>
+            <div className="ui-label" style={{ fontSize: 16 }}>Add a node from the left panel to begin patching</div>
             </div>
           </div>
         )}

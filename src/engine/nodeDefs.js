@@ -1180,7 +1180,7 @@ export const NODE_DEFS = {
 };
 
 export const NODE_CATEGORIES = [
-  { id: 'source', label: 'Drone & Texture Sources', types: ['drift', 'grain', 'noise', 'oscillator', 'sampler'] },
+  { id: 'source', label: 'Drone & texture sources', types: ['drift', 'grain', 'noise', 'oscillator', 'sampler'] },
   { id: 'sequence', label: 'Sequencing', types: ['noteCycler', 'synthSeq', 'arp', 'progression'] },
   { id: 'stream', label: 'Streams', types: ['stream'] },
   { id: 'looper', label: 'Loopers', types: ['looper'] },

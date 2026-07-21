@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useLayoutEffect } from 'react';
 import { NodeBody } from '../nodes/NodeBodies';
 import { HEADER_H, PORT_TOP, PORT_GAP } from './layout';
 
@@ -22,17 +22,28 @@ function Port({ side, port, index, accent, filled, onPortDown, onPortUp, nodeId 
           boxShadow: filled ? `0 0 6px ${accent}88` : 'none',
         }}
       />
-      <span className="text-[7px] uppercase tracking-wider" style={{ color: `${accent}99` }}>{port.id}</span>
+      <span className="text-[12px] capitalize" style={{ fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.3)' }}>{port.id}</span>
     </div>
   );
 }
 
 const SOURCE_CATS = new Set(['source', 'sequence', 'stream', 'looper']);
 
-export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemove, onToggleEnabled, updateParam, handle, onPortDown, onPortUp, filledPorts }) {
+export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemove, onToggleEnabled, updateParam, handle, onPortDown, onPortUp, filledPorts, width, onWidth }) {
   const dragRef = useRef(null);
+  const bodyRef = useRef(null);
   const isSource = SOURCE_CATS.has(def.category);
   const enabled = node.params.enabled !== false;
+  const boxWidth = width || def.width;
+
+  // Auto-grow the node so its contents never overflow: measure the body's
+  // natural (scroll) width and, if it exceeds the current box, report the
+  // larger width up so both the box and the cable anchors use it.
+  useLayoutEffect(() => {
+    if (!bodyRef.current || !onWidth) return;
+    const needed = Math.max(def.width, Math.ceil(bodyRef.current.scrollWidth));
+    if (needed !== boxWidth) onWidth(node.id, needed);
+  });
 
   const onHeaderDown = useCallback((e) => {
     e.stopPropagation();
@@ -54,12 +65,12 @@ export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemo
   return (
     <div
       ref={dragRef}
-      className="absolute rounded-xl no-select"
+      className="absolute rounded-lg no-select"
       style={{
-        left: node.x, top: node.y, width: def.width,
-        background: 'linear-gradient(180deg, rgba(22,22,27,0.96), rgba(16,16,19,0.96))',
-        border: `1px solid ${selected ? `${a}66` : 'rgba(255,255,255,0.07)'}`,
-        boxShadow: selected ? `0 8px 30px rgba(0,0,0,0.5), 0 0 0 1px ${a}22` : '0 6px 20px rgba(0,0,0,0.4)',
+        left: node.x, top: node.y, width: boxWidth,
+        background: 'rgba(25,28,32,0.9)',
+        border: `0.5px solid ${selected ? a : 'rgba(255,255,255,0.3)'}`,
+        boxShadow: selected ? `0 8px 30px rgba(0,0,0,0.5), 0 0 0 1px ${a}33` : '0 6px 20px rgba(0,0,0,0.4)',
         backdropFilter: 'blur(12px)',
       }}
       onPointerDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
@@ -68,7 +79,7 @@ export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemo
       <div
         onPointerDown={onHeaderDown}
         className="flex items-center justify-between px-3 cursor-grab active:cursor-grabbing"
-        style={{ height: HEADER_H, borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        style={{ height: HEADER_H, borderBottom: '0.5px solid rgba(255,255,255,0.2)' }}
       >
         <div className="flex items-center gap-2 min-w-0">
           {isSource ? (
@@ -86,7 +97,7 @@ export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemo
           ) : (
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: a }} />
           )}
-          <span className="font-cal text-[12px] truncate" style={{ color: isSource && !enabled ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.85)' }}>{def.label}</span>
+          <span className="font-cal text-[14px] truncate" style={{ color: isSource && !enabled ? 'rgba(255,255,255,0.35)' : '#ffffff' }}>{def.label}</span>
         </div>
         <button onClick={(e) => { e.stopPropagation(); onRemove(node.id); }} className="text-white/25 hover:text-white/70 text-sm leading-none">×</button>
       </div>
@@ -106,7 +117,7 @@ export function NodeShell({ node, def, scale, selected, onMove, onSelect, onRemo
       ))}
 
       {/* Body */}
-      <div className="px-3 py-3" style={{ paddingTop: Math.max(12, (Math.max(def.inputs.length, def.outputs.length)) * PORT_GAP - 8) }}>
+      <div ref={bodyRef} className="px-3 py-3" style={{ paddingTop: Math.max(16, (PORT_TOP - HEADER_H) + Math.max(0, Math.max(def.inputs.length, def.outputs.length) - 1) * PORT_GAP + 16) }}>
         <NodeBody node={node} def={def} update={(k, v) => updateParam(node.id, k, v)} handle={handle} />
       </div>
     </div>
