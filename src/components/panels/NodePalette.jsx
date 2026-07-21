@@ -5,8 +5,8 @@ import { HamburgerButton } from '../ui/icons';
 
 const ICONS = {
   oscillator: '∿', drift: '◍', grain: '∷', noise: '▒', sampler: '◼',
-  noteCycler: '↻', synthSeq: '⎓', arp: '⇗', progression: '⊞', stream: '◈',
-  looper: '⊚', lfo: '〜', filter: '⏚', delay: '⋯', reverb: '◌', eq: '▤', warp: '✦',
+  noteCycler: '↻', synthSeq: '⎓', arp: '⇗', progression: '⊞', piano: '⌸', stream: '◈',
+  looper: '⊚', lfo: '〜', volume: '▮', filter: '⏚', delay: '⋯', reverb: '◌', eq: '▤', warp: '✦',
   stutter: '⊟', pixelate: '▦', timestretch: '⟿', freeze: '❄', harmonizer: '⋔',
 };
 

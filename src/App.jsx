@@ -149,7 +149,9 @@ export default function App() {
             isRecording={graph.isRecording} onStartRec={graph.startRecording} onStopRec={graph.stopRecording}
             recError={graph.recError} onClearRecError={graph.clearRecError}
             engine={graph.engine}
-            globalKey={graph.globalKey} onGlobalKey={graph.setGlobalKey} onRandomise={graph.randomiseAll} onClear={graph.clearAll}
+            globalKey={graph.globalKey} onGlobalKey={graph.setGlobalKey}
+            globalColour={graph.globalColour} onGlobalColour={graph.setGlobalColour}
+            onRandomise={graph.randomiseAll} onClear={graph.clearAll}
             collapsed={transportCollapsed} onToggleCollapse={() => setTransportCollapsed((c) => !c)}
           />
           <Mixer

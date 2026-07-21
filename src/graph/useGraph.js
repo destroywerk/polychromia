@@ -14,6 +14,109 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (a, b) => Math.floor(rand(a, b + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const r2 = (v) => +v.toFixed(2);
+const clampR = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ── Colour → sound mapping ──────────────────────────────────────────────
+// Decompose an RGB colour into intuitive mood axes: warm (orange/red) vs cold
+// (blue), soft (green), and energy/anger (saturated red). Neutral greys have
+// ~zero saturation and produce NO change (the control is a no-op until the user
+// picks a real colour).
+function colourAxes(colour) {
+  const r = (colour?.r ?? 128) / 255, g = (colour?.g ?? 128) / 255, b = (colour?.b ?? 128) / 255;
+  const sum = r + g + b || 1;
+  const rN = r / sum, gN = g / sum, bN = b / sum;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const sat = max ? (max - min) / max : 0;
+  const light = (max + min) / 2;
+  const warmAxis = clampR((rN - bN) * 3, -1, 1);            // + warm(orange/red), − cold(blue)
+  const softAxis = clampR((gN - (rN + bN) / 2) * 3, 0, 1);  // green → soft
+  const energyAxis = clampR((rN - Math.max(gN, bN)) * 2.4 * (0.5 + sat), 0, 1); // saturated red → anger
+  return { sat, light, warmAxis, warmPos: Math.max(0, warmAxis), coldAxis: Math.max(0, -warmAxis), softAxis, energyAxis };
+}
+
+// Colour → chord quality: cold leans minor, warm leans lush major, green sus,
+// saturated red dominant. Only used when the hue is clearly saturated.
+function colourChord(m) {
+  if (m.coldAxis > 0.35) return m.coldAxis > 0.6 ? 'min9' : 'min7';
+  if (m.energyAxis > 0.5) return '7';
+  if (m.softAxis > 0.35) return 'sus2';
+  if (m.warmPos > 0.4) return 'maj9';
+  return 'maj7';
+}
+
+// Per-node parameter overrides derived from the global colour. Timbre knobs are
+// centred so a mid colour ≈ each node's default; chord/wave "quality" changes
+// only kick in for clearly-saturated colours (strongHue).
+function colourParams(type, params, colour) {
+  const m = colourAxes(colour);
+  if (m.sat < 0.12) return {};   // near-grey → no-op
+  const soft = m.softAxis, energy = m.energyAxis, cold = m.coldAxis, warm = m.warmPos, warmB = m.warmAxis;
+  const strongHue = m.sat >= 0.22;
+  const has = (k) => k in params;
+  const waveFor = () => (energy > 0.4 ? 'sawtooth' : soft > 0.35 ? 'sine' : 'triangle');
+  const chord = colourChord(m);
+  switch (type) {
+    case 'oscillator': {
+      const o = {};
+      if (strongHue && has('wave')) o.wave = waveFor();
+      if (has('detune')) o.detune = Math.round(energy * 24);
+      if (has('attack')) o.attack = r2(clampR(3 + soft * 3 - energy * 2.5, 0.1, 8));
+      if (has('release')) o.release = r2(clampR(6 + soft * 4 + warm * 2 - energy * 3, 0.5, 12));
+      return o;
+    }
+    case 'drift':
+      return {
+        spread: r2(clampR(0.6 + warmB * 0.3, 0.1, 1)),
+        motion: r2(clampR(0.18 + energy * 0.5 - soft * 0.1, 0.02, 1.2)),
+        attack: r2(clampR(4 + soft * 3 - energy * 2, 0.1, 10)),
+        release: r2(clampR(6 + soft * 4 + warm * 2 - energy * 3, 0.5, 16)),
+      };
+    case 'grain':
+      return {
+        density: Math.round(clampR(5 + energy * 3, 2, 8)),
+        shimmer: r2(clampR(0.4 + cold * 0.4 - warm * 0.15, 0, 1)),
+        drift: Math.round(clampR(14 + energy * 20, 0, 50)),
+      };
+    case 'noise': {
+      const o = { cutoff: Math.round(clampR(700 - warmB * 2000 + energy * 800, 150, 6000)), q: r2(clampR(1.4 + energy * 4, 0.2, 10)) };
+      if (strongHue) o.color = warmB > 0.25 ? 'brown' : warmB < -0.25 ? 'white' : 'pink';
+      return o;
+    }
+    case 'filter':
+      return { cutoff: Math.round(clampR(1200 - warmB * 3000 + energy * 1500, 200, 10000)), resonance: r2(clampR(1.5 + energy * 4.5, 0.1, 10)) };
+    case 'delay':
+      return { feedback: r2(clampR(0.45 + energy * 0.3, 0.05, 0.9)), wet: r2(clampR(0.4 + soft * 0.15 + cold * 0.1, 0.05, 0.8)) };
+    case 'reverb':
+      return { decay: r2(clampR(4 + soft * 4 + cold * 3, 0.5, 12)), wet: r2(clampR(0.45 + soft * 0.15 + cold * 0.1 - warm * 0.1, 0.05, 0.85)) };
+    case 'eq':
+      return { low: Math.round(clampR(warmB * 6, -12, 6)), high: Math.round(clampR(-warmB * 6, -12, 8)), mid: Math.round(clampR(energy * 5, -6, 6)) };
+    case 'warp':
+      return { depth: r2(clampR(0.4 + energy * 0.3, 0, 1)), mix: r2(clampR(0.35 + energy * 0.25, 0, 1)) };
+    case 'arp': {
+      const o = {};
+      if (strongHue && has('wave')) o.wave = waveFor();
+      if (strongHue && has('chord') && params.chord !== chord) o.chord = chord;
+      return o;
+    }
+    case 'noteCycler': {
+      const o = { gate: r2(clampR(0.95 - energy * 0.35, 0.2, 1)) };
+      if (strongHue && has('wave')) o.wave = waveFor();
+      return o;
+    }
+    case 'synthSeq':
+      return { gate: r2(clampR(0.7 - energy * 0.3 + soft * 0.1, 0.1, 1)), noteLength: r2(clampR(0.6 + soft * 1.5 - energy * 0.4, 0.05, 4)) };
+    case 'progression': {
+      const o = {};
+      if (strongHue && has('wave')) o.wave = waveFor();
+      if (strongHue && Array.isArray(params.steps) && params.steps.length && !params.steps.every((s) => s.chord === chord)) {
+        o.steps = params.steps.map((s) => ({ ...s, chord }));
+      }
+      return o;
+    }
+    default:
+      return {};
+  }
+}
 
 // Build a pool of harmonically-relevant notes for a key+chord across a low–mid
 // octave range (deduped, sorted low→high). Used to spread tonal sources across
@@ -150,6 +253,8 @@ export function useGraph() {
   const [recError, setRecError] = useState(null);
   const [globalKey, setGlobalKeyState] = useState({ root: 'C', chord: 'add9' });
   const globalKeyRef = useRef({ root: 'C', chord: 'add9' });
+  const [globalColour, setGlobalColourState] = useState({ r: 150, g: 150, b: 150 });
+  const globalColourRef = useRef({ r: 150, g: 150, b: 150 });
   const idRef = useRef({});
   const voiceCounterRef = useRef(0);   // monotonic index → stable chord-tone per single-voice node
 
@@ -171,6 +276,8 @@ export function useGraph() {
     // New source nodes inherit the current global key so they drop in on-key
     // (baked into both the audio handle and the React node state below).
     Object.assign(params, keyOverrides(type, params, globalKeyRef.current, voiceIndex));
+    // New nodes also adopt the current colour mood (no-op when colour is grey).
+    Object.assign(params, colourParams(type, params, globalColourRef.current));
     graphEngine.addNode(id, type, params);
     const node = { id, type, x, y, params };
     setNodes((prev) => [...prev, node]);
@@ -247,6 +354,22 @@ export function useGraph() {
     }));
   }, []);
 
+  // ── Global colour: paint a mood across every module live ──
+  const setGlobalColour = useCallback((next) => {
+    globalColourRef.current = next;
+    setGlobalColourState(next);
+    setNodes((prev) => prev.map((n) => {
+      const ov = colourParams(n.type, n.params, next);
+      const changed = {};
+      Object.entries(ov).forEach(([k, v]) => {
+        const diff = Array.isArray(v) ? true : n.params[k] !== v;
+        if (diff) { changed[k] = v; try { graphEngine.updateParam(n.id, k, v); } catch (e) {} }
+      });
+      if (!Object.keys(changed).length) return n;
+      return { ...n, params: { ...n.params, ...changed } };
+    }));
+  }, []);
+
   // ── Randomise every node for instant ambient variation ──
   const randomiseAll = useCallback(() => {
     const key = globalKeyRef.current;
@@ -304,6 +427,7 @@ export function useGraph() {
     addConnection, removeConnection, canConnect,
     clearAll,
     globalKey, setGlobalKey, randomiseAll,
+    globalColour, setGlobalColour,
     playing, play, pause, stop,
     bpm, setBpm,
     masterVolume, setMasterVolume,

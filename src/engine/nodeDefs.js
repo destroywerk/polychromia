@@ -49,6 +49,43 @@ function makePresetSynth(preset) {
   }
 }
 
+// Playable keyboard instrument voices. No samples available, so each is a
+// synthesized approximation using PolySynth of Tone.Synth / FMSynth / AMSynth
+// with tuned oscillator types + envelopes.
+export const PIANO_PRESETS = ['grand', 'upright', 'organ', 'wurlitzer', 'harmonium', 'rhodes', 'clavinet', 'marimba', 'vibraphone'];
+function makePianoVoice(preset) {
+  switch (preset) {
+    case 'upright':
+      // Darker, shorter acoustic piano.
+      return new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 1.1, sustain: 0, release: 0.9 } });
+    case 'organ':
+      // Sustained, no decay.
+      return new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsine', count: 3, spread: 12 }, envelope: { attack: 0.01, decay: 0.1, sustain: 1, release: 0.25 } });
+    case 'wurlitzer':
+      // Barkier electric piano.
+      return new Tone.PolySynth(Tone.FMSynth, { harmonicity: 2, modulationIndex: 8, oscillator: { type: 'sine' }, envelope: { attack: 0.003, decay: 1.6, sustain: 0.05, release: 1 }, modulation: { type: 'square' }, modulationEnvelope: { attack: 0.004, decay: 0.3, sustain: 0.1, release: 0.4 } });
+    case 'harmonium':
+      // Reedy, sustained.
+      return new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sawtooth' }, envelope: { attack: 0.18, decay: 0.2, sustain: 1, release: 0.5 } });
+    case 'rhodes':
+      // Mellow electric piano.
+      return new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1, modulationIndex: 4, oscillator: { type: 'sine' }, envelope: { attack: 0.004, decay: 2, sustain: 0.08, release: 1.4 }, modulation: { type: 'sine' }, modulationEnvelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 0.6 } });
+    case 'clavinet':
+      // Bright, short, percussive.
+      return new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3, modulationIndex: 10, oscillator: { type: 'sawtooth' }, envelope: { attack: 0.002, decay: 0.35, sustain: 0, release: 0.25 }, modulation: { type: 'square' }, modulationEnvelope: { attack: 0.002, decay: 0.1, sustain: 0, release: 0.15 } });
+    case 'marimba':
+      // Woody mallet, very fast attack, short decay.
+      return new Tone.PolySynth(Tone.FMSynth, { harmonicity: 2, modulationIndex: 2, oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.3 }, modulation: { type: 'sine' }, modulationEnvelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.2 } });
+    case 'vibraphone':
+      // Metallic mallet with a long ring.
+      return new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3.5, modulationIndex: 6, oscillator: { type: 'sine' }, envelope: { attack: 0.002, decay: 2, sustain: 0, release: 1.8 }, modulation: { type: 'sine' }, modulationEnvelope: { attack: 0.002, decay: 0.6, sustain: 0, release: 0.6 } });
+    case 'grand':
+    default:
+      // Acoustic grand: bright-ish, rings out, no sustain.
+      return new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.004, decay: 1.6, sustain: 0, release: 1.2 } });
+  }
+}
+
 // Shift a note string like "C3" up/down by whole octaves.
 function shiftOctave(noteStr, delta) {
   const m = /^([A-G]#?)(-?\d+)$/.exec(noteStr);
@@ -362,6 +399,55 @@ export const NODE_DEFS = {
         dispose() { if (player) { try { player.stop(); player.dispose(); } catch (e) {} } level.dispose(); pan.dispose(); },
       };
       return handle;
+    },
+  },
+
+  // Playable keyboard: a manually-triggered instrument with selectable voices.
+  // It is played by the on-node keyboard (or held notes), so it must NOT
+  // auto-start on transport.
+  piano: {
+    label: 'Piano',
+    category: 'source',
+    accent: ACCENT.source,
+    width: 330,
+    inputs: [{ id: 'level', kind: 'mod' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { preset: 'grand', octave: 4, level: 0.7, pan: 0, sustain: 1.2, enabled: true },
+    create(ctx, p) {
+      let synth = makePianoVoice(p.preset);
+      const level = new Tone.Gain(p.level);
+      const pan = new Tone.Panner(p.pan);
+      synth.connect(level); level.connect(pan);
+      const state = { ...p };
+      // Apply the initial ring-out (release) time.
+      try { synth.set({ envelope: { release: state.sustain } }); } catch (e) {}
+      return {
+        audioIn: null, audioOut: pan, modOut: null,
+        modIns: { level: level.gain },
+        level, pan, isSource: true,
+        noteOn(note) { try { synth.triggerAttack(note); } catch (e) {} },
+        noteOff(note) { try { synth.triggerRelease(note); } catch (e) {} },
+        // Manual instrument — transport does not drive it.
+        play() {}, stop() { try { synth.releaseAll(); } catch (e) {} },
+        setTransport() {}, setEnabled() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'level') level.gain.rampTo(val, 0.08);
+          else if (key === 'pan') pan.pan.rampTo(val, 0.08);
+          else if (key === 'sustain') { try { synth.set({ envelope: { release: val } }); } catch (e) {} }
+          else if (key === 'preset') {
+            try { synth.releaseAll(); } catch (e) {}
+            try { synth.disconnect(); } catch (e) {}
+            const old = synth;
+            setTimeout(() => { try { old.dispose(); } catch (e) {} }, 60);
+            synth = makePianoVoice(val);
+            // Preserve the current ring-out time across a voice swap.
+            try { synth.set({ envelope: { release: state.sustain } }); } catch (e) {}
+            synth.connect(level);
+          }
+        },
+        dispose() { try { synth.releaseAll(); } catch (e) {} const old = synth; setTimeout(() => { try { old.dispose(); } catch (e) {} }, 100); level.dispose(); pan.dispose(); },
+      };
     },
   },
 
@@ -847,6 +933,35 @@ export const NODE_DEFS = {
   },
 
   // ─────────────────────────── EFFECTS ───────────────────────────
+  // Simple utility: level + pan (with a level mod input). Handy as an
+  // inline gain/pan stage anywhere in a chain.
+  volume: {
+    label: 'Volume',
+    category: 'effect',
+    accent: ACCENT.effect,
+    width: 200,
+    inputs: [{ id: 'in', kind: 'audio' }, { id: 'level', kind: 'mod' }],
+    outputs: [{ id: 'out', kind: 'audio' }],
+    defaults: { level: 0.8, pan: 0 },
+    create(ctx, p) {
+      const gain = new Tone.Gain(p.level);
+      const pan = new Tone.Panner(p.pan);
+      gain.connect(pan);
+      const state = { ...p };
+      return {
+        audioIn: gain, audioOut: pan, modOut: null,
+        modIns: { level: gain.gain }, isSource: false,
+        play() {}, stop() {}, setTransport() {},
+        update(key, val) {
+          state[key] = val;
+          if (key === 'level') gain.gain.rampTo(val, 0.08);
+          else if (key === 'pan') pan.pan.rampTo(val, 0.08);
+        },
+        dispose() { [gain, pan].forEach((n) => { try { n.dispose(); } catch (e) {} }); },
+      };
+    },
+  },
+
   filter: {
     label: 'Filter',
     category: 'effect',
@@ -1182,10 +1297,11 @@ export const NODE_DEFS = {
 export const NODE_CATEGORIES = [
   { id: 'source', label: 'Drone & texture sources', types: ['drift', 'grain', 'noise', 'oscillator', 'sampler'] },
   { id: 'sequence', label: 'Sequencing', types: ['noteCycler', 'synthSeq', 'arp', 'progression'] },
+  { id: 'instrument', label: 'Instruments', types: ['piano'] },
   { id: 'stream', label: 'Streams', types: ['stream'] },
   { id: 'looper', label: 'Loopers', types: ['looper'] },
   { id: 'mod', label: 'Modulation', types: ['lfo'] },
-  { id: 'effect', label: 'Effects', types: ['filter', 'delay', 'reverb', 'eq', 'warp', 'stutter', 'pixelate', 'timestretch', 'freeze', 'harmonizer'] },
+  { id: 'effect', label: 'Effects', types: ['volume', 'filter', 'delay', 'reverb', 'eq', 'warp', 'stutter', 'pixelate', 'timestretch', 'freeze', 'harmonizer'] },
 ];
 
 export { ACCENT };

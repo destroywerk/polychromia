@@ -1,9 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Stepper } from '../ui/Controls';
 import { CollapseButton } from '../ui/icons';
-import { NOTES } from '../../engine/theory';
+import { NOTES, CHORD_TYPES } from '../../engine/theory';
 
-const KEY_CHORDS = ['Root', '5', 'add9', 'maj7', 'min7', 'm11', 'sus2', 'maj9'];
+// RGB colour mixer that maps to a global "mood" affecting every module.
+function ColourControl({ colour, onChange, height = 30 }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const c = colour || { r: 150, g: 150, b: 150 };
+  const rgb = `rgb(${c.r},${c.g},${c.b})`;
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ right: window.innerWidth - r.right, top: r.bottom + 6 });
+    setOpen((o) => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const inside = (t) => (popRef.current && popRef.current.contains(t)) || (btnRef.current && btnRef.current.contains(t));
+    const onDown = (ev) => { if (!inside(ev.target)) setOpen(false); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('resize', () => setOpen(false));
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  }, [open]);
+
+  const setCh = (ch, v) => onChange({ ...c, [ch]: v });
+  const track = (ch) => {
+    const at = (x) => `rgb(${ch === 'r' ? x : c.r},${ch === 'g' ? x : c.g},${ch === 'b' ? x : c.b})`;
+    return `linear-gradient(to right, ${at(0)}, ${at(255)}) center / 100% 4px no-repeat`;
+  };
+
+  const Slider = ({ ch, label }) => (
+    <div className="flex items-center gap-2">
+      <span className="ui-label text-[9px] w-3">{label}</span>
+      <input type="range" min={0} max={255} step={1} value={c[ch]}
+        onChange={(e) => setCh(ch, parseInt(e.target.value, 10))}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="flex-1 mix-range" style={{ background: track(ch) }} />
+      <span className="ui-value text-[9px] w-6 text-right">{c[ch]}</span>
+    </div>
+  );
+
+  return (
+    <>
+      <button ref={btnRef} onClick={toggle} title="Colour mood"
+        className="ctl ctl-acc flex items-center justify-center" style={{ height, width: 56, minWidth: 56, '--acc': '#8fbaa9' }}>
+        <span className="w-9 h-3.5 rounded" style={{ background: rgb, border: '0.5px solid rgba(255,255,255,0.3)' }} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={popRef} onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}
+          className="fixed rounded-lg p-3 no-select space-y-2.5"
+          style={{
+            right: pos.right, top: pos.top, width: 220, zIndex: 9999,
+            background: 'rgba(16,16,19,0.97)', border: '0.5px solid rgba(255,255,255,0.15)',
+            backdropFilter: 'blur(12px)', boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
+          }}>
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded" style={{ background: rgb, border: '0.5px solid rgba(255,255,255,0.25)' }} />
+            <div className="flex-1">
+              <div className="ui-label text-[9px]">Colour mood</div>
+              <div className="ui-value text-[10px]">{rgb}</div>
+            </div>
+          </div>
+          <Slider ch="r" label="R" />
+          <Slider ch="g" label="G" />
+          <Slider ch="b" label="B" />
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+const KEY_CHORDS = Object.keys(CHORD_TYPES);
 const BPM_OPTIONS = Array.from({ length: 181 }, (_, i) => 20 + i);
 
 // Visible filled slider track (sage up to the value), matching the mixer sliders.
@@ -21,7 +96,7 @@ function MiniPlay({ playing, onPlay, onPause }) {
   );
 }
 
-export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, recError, onClearRecError, engine, globalKey, onGlobalKey, onRandomise, onClear, collapsed, onToggleCollapse }) {
+export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, masterVolume, onMasterVolume, isRecording, onStartRec, onStopRec, recError, onClearRecError, engine, globalKey, onGlobalKey, globalColour, onGlobalColour, onRandomise, onClear, collapsed, onToggleCollapse }) {
   const [confirmClear, setConfirmClear] = useState(false);
   const panelStyle = { background: 'rgba(25,28,32,0.6)', border: '0.5px solid rgba(255,255,255,0.3)', backdropFilter: 'blur(12px)' };
 
@@ -55,19 +130,27 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
         </button>
       </div>
 
-      {/* Master volume */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="ui-label">Master volume</span>
-          <span className="ui-value">{Math.round(masterVolume * 100)}%</span>
+      {/* Master volume + BPM — one row, volume grows to fill, BPM at right */}
+      <div className="flex items-start gap-5">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="ui-label">Master volume</span>
+            <span className="ui-value">{Math.round(masterVolume * 100)}%</span>
+          </div>
+          <div className="flex items-center" style={{ height: 30 }}>
+            <input type="range" min={0} max={1} step={0.01} value={masterVolume} onChange={(e) => onMasterVolume(parseFloat(e.target.value))}
+              className="w-full mix-range" style={{ background: trackFill(masterVolume * 100) }} />
+          </div>
         </div>
-        <input type="range" min={0} max={1} step={0.01} value={masterVolume} onChange={(e) => onMasterVolume(parseFloat(e.target.value))}
-          className="w-full mix-range" style={{ background: trackFill(masterVolume * 100) }} />
+        <div>
+          <div className="ui-label text-[9px] mb-1.5">BPM</div>
+          <Stepper value={bpm} onChange={(v) => onBpm(v)} options={BPM_OPTIONS} accent="#8fbaa9" height={30} />
+        </div>
       </div>
 
-      {/* Key + BPM steppers */}
-      <div className="flex items-end gap-3">
-        <div className="flex-1">
+      {/* Key + Colour — Key left, Colour at right edge (under BPM) */}
+      <div className="flex items-end justify-between">
+        <div>
           <div className="ui-label text-[9px] mb-1.5">Key</div>
           {globalKey && onGlobalKey ? (
             <div className="flex items-center gap-1">
@@ -78,10 +161,12 @@ export function Transport({ playing, onPlay, onPause, onStop, bpm, onBpm, master
             <div className="ui-value text-[11px] text-white/50">—</div>
           )}
         </div>
-        <div>
-          <div className="ui-label text-[9px] mb-1.5">BPM</div>
-          <Stepper value={bpm} onChange={(v) => onBpm(v)} options={BPM_OPTIONS} accent="#8fbaa9" height={30} />
-        </div>
+        {globalColour && onGlobalColour && (
+          <div>
+            <div className="ui-label text-[9px] mb-1.5">Colour</div>
+            <ColourControl colour={globalColour} onChange={onGlobalColour} height={30} />
+          </div>
+        )}
       </div>
 
       {/* Randomise + Clear all */}

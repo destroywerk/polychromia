@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Knob, Segmented, MiniSlider, Stepper } from '../ui/Controls';
 import { NOTES, CHORD_TYPES } from '../../engine/theory';
-import { SYNTH_PRESETS } from '../../engine/nodeDefs';
+import { SYNTH_PRESETS, PIANO_PRESETS } from '../../engine/nodeDefs';
 import { searchStations, AMBIENT_GENRES } from '../../utils/radioApi';
 
 const WAVES = [
@@ -106,6 +106,9 @@ export function NodeBody({ node, def, update, handle }) {
     case 'sampler':
       return <SamplerBody p={p} a={a} update={update} handle={handle} />;
 
+    case 'piano':
+      return <PianoBody p={p} a={a} update={update} handle={handle} />;
+
     case 'noteCycler':
       return <NoteCyclerBody p={p} a={a} update={update} handle={handle} />;
 
@@ -133,6 +136,14 @@ export function NodeBody({ node, def, update, handle }) {
             <Knob value={p.depth} min={0} max={1} onChange={(v) => update('depth', v)} label="depth" accent={a} format={fPct} />
           </KnobRow>
         </div>
+      );
+
+    case 'volume':
+      return (
+        <KnobRow>
+          <Knob value={p.level} min={0} max={1.5} onChange={(v) => update('level', v)} label="level" accent={a} format={fPct} />
+          <Knob value={p.pan} min={-1} max={1} onChange={(v) => update('pan', v)} label="pan" accent={a} format={(v) => (Math.abs(v) < 0.02 ? 'C' : v < 0 ? `L${Math.round(-v * 100)}` : `R${Math.round(v * 100)}`)} />
+        </KnobRow>
       );
 
     case 'filter':
@@ -280,6 +291,146 @@ function SamplerBody({ p, a, update, handle }) {
         <Knob value={p.offset} min={0} max={0.99} onChange={(v) => update('offset', v)} label="start" accent={a} format={fPct} />
         <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
       </Row>
+    </div>
+  );
+}
+
+// ── Piano (playable keyboard instrument) ──
+const WHITE_PATTERN = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const BLACK_AFTER_LOCAL = new Set([0, 1, 3, 4, 5]); // C D _ F G A (sharps)
+
+// Classic DAW laptop-keyboard → semitone-offset map (relative to base octave).
+const KEY_SEMITONES = {
+  a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11,
+  k: 12, o: 13, l: 14, p: 15, ';': 16,
+};
+const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+function noteFromSemitone(baseOct, semi) {
+  const idx = ((baseOct * 12) + semi);
+  return `${CHROMATIC[idx % 12]}${Math.floor(idx / 12)}`;
+}
+
+function PianoBody({ p, a, update, handle }) {
+  const [active, setActive] = useState(() => new Set());
+  const [kbd, setKbd] = useState(false);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const heldKeys = useRef(new Set());
+
+  const press = (note) => {
+    if (!handle) return;
+    handle.noteOn?.(note);
+    setActive((s) => { const n = new Set(s); n.add(note); return n; });
+  };
+  const release = (note) => {
+    if (!activeRef.current.has(note)) return;
+    handle?.noteOff?.(note);
+    setActive((s) => { const n = new Set(s); n.delete(note); return n; });
+  };
+  const releaseAll = () => {
+    if (handle) activeRef.current.forEach((n) => handle.noteOff?.(n));
+    heldKeys.current.clear();
+    setActive(new Set());
+  };
+  // Release any held notes on unmount so nothing sticks.
+  useEffect(() => () => { if (handle) activeRef.current.forEach((n) => handle.noteOff?.(n)); }, [handle]);
+
+  // Two octaves from the selected base octave.
+  const baseOct = p.octave ?? 4;
+
+  // Window-level laptop-keyboard playing, active only while the toggle is on.
+  // Read the latest octave via a ref so octave changes apply live.
+  const octRef = useRef(baseOct);
+  octRef.current = baseOct;
+  useEffect(() => {
+    if (!kbd) return undefined;
+    const isTyping = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+    };
+    const down = (e) => {
+      const k = e.key.toLowerCase();
+      if (!(k in KEY_SEMITONES)) return;
+      if (isTyping()) return;
+      e.preventDefault();
+      if (e.repeat || heldKeys.current.has(k)) return;
+      heldKeys.current.add(k);
+      press(noteFromSemitone(octRef.current, KEY_SEMITONES[k]));
+    };
+    const up = (e) => {
+      const k = e.key.toLowerCase();
+      if (!(k in KEY_SEMITONES)) return;
+      if (isTyping()) return;
+      e.preventDefault();
+      if (!heldKeys.current.has(k)) return;
+      heldKeys.current.delete(k);
+      release(noteFromSemitone(octRef.current, KEY_SEMITONES[k]));
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      releaseAll();
+    };
+  }, [kbd, handle]);
+
+  const whiteDefs = [];
+  for (let o = 0; o < 2; o++) WHITE_PATTERN.forEach((n) => whiteDefs.push({ n, oct: baseOct + o }));
+  const whiteW = 100 / whiteDefs.length;
+  const blackDefs = [];
+  whiteDefs.forEach((w, wi) => {
+    if (BLACK_AFTER_LOCAL.has(wi % 7) && wi < whiteDefs.length - 1) {
+      blackDefs.push({ n: `${w.n}#`, oct: w.oct, leftPct: (wi + 1) * whiteW });
+    }
+  });
+
+  const keyH = 76;
+  const keyHandlers = (note) => ({
+    onPointerDown: (e) => { e.stopPropagation(); press(note); },
+    onPointerUp: (e) => { e.stopPropagation(); release(note); },
+    onPointerLeave: () => release(note),
+  });
+
+  return (
+    <div className="space-y-2.5">
+      <Row>
+        <LabeledStepper label="voice" value={p.preset} onChange={(v) => update('preset', v)} options={PIANO_PRESETS} accent={a} wide />
+        <LabeledStepper label="oct" value={p.octave} onChange={(v) => update('octave', v)} options={[2, 3, 4, 5, 6]} accent={a} />
+        <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
+        <Knob value={p.sustain} min={0.1} max={8} onChange={(v) => update('sustain', v)} label="sustain" accent={a} format={fSec} />
+      </Row>
+      <Row>
+        <button onClick={(e) => { e.stopPropagation(); setKbd((v) => !v); }}
+          className={`ui-value px-2 py-1 rounded-lg text-[9px] transition-all ${kbd ? '' : 'ctl ctl-acc'}`}
+          style={kbd ? { background: `${a}22`, border: `0.5px solid ${a}`, color: a } : { '--acc': a, color: '#ffffff' }}>
+          ⌨ keyboard {kbd ? 'on' : 'off'}
+        </button>
+      </Row>
+      <div className="relative select-none" style={{ height: keyH }} onPointerDown={(e) => e.stopPropagation()}>
+        <div className="absolute inset-0 flex gap-[2px]">
+          {whiteDefs.map((w) => {
+            const note = `${w.n}${w.oct}`;
+            const on = active.has(note);
+            return (
+              <button key={note} {...keyHandlers(note)}
+                className="flex-1 rounded-b transition-colors"
+                style={{ background: on ? a : '#e8e8ea', border: '0.5px solid #0b0b0d' }} />
+            );
+          })}
+        </div>
+        {blackDefs.map((b) => {
+          const note = `${b.n}${b.oct}`;
+          const on = active.has(note);
+          return (
+            <button key={note} {...keyHandlers(note)}
+              className="absolute top-0 rounded-b z-10 transition-colors"
+              style={{ left: `${b.leftPct}%`, transform: 'translateX(-50%)', width: `${whiteW * 0.62}%`, height: keyH * 0.62, background: on ? a : '#161619', border: '0.5px solid #0b0b0d' }} />
+          );
+        })}
+      </div>
     </div>
   );
 }
