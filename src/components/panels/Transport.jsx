@@ -36,17 +36,6 @@ function ColourControl({ colour, onChange, height = 30 }) {
     return `linear-gradient(to right, ${at(0)}, ${at(255)}) center / 100% 4px no-repeat`;
   };
 
-  const Slider = ({ ch, label }) => (
-    <div className="flex items-center gap-2">
-      <span className="ui-label text-[9px] w-3">{label}</span>
-      <input type="range" min={0} max={255} step={1} value={c[ch]}
-        onChange={(e) => setCh(ch, parseInt(e.target.value, 10))}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="flex-1 mix-range" style={{ background: track(ch) }} />
-      <span className="ui-value text-[9px] w-6 text-right">{c[ch]}</span>
-    </div>
-  );
-
   return (
     <>
       <button ref={btnRef} onClick={toggle} title="Colour mood"
@@ -61,16 +50,25 @@ function ColourControl({ colour, onChange, height = 30 }) {
             background: 'rgba(16,16,19,0.97)', border: '0.5px solid rgba(255,255,255,0.15)',
             backdropFilter: 'blur(12px)', boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
           }}>
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded" style={{ background: rgb, border: '0.5px solid rgba(255,255,255,0.25)' }} />
-            <div className="flex-1">
+          <div className="flex items-start gap-2">
+            <span className="w-8 h-8 rounded flex-shrink-0" style={{ background: rgb, border: '0.5px solid rgba(255,255,255,0.25)' }} />
+            <div className="flex-1 min-w-0">
               <div className="ui-label text-[9px]">Colour mood</div>
               <div className="ui-value text-[10px]">{rgb}</div>
             </div>
+            <button onClick={(e) => { e.stopPropagation(); onChange({ r: 150, g: 150, b: 150 }); }}
+              className="ui-label text-[9px] hover:text-white hover:underline">Reset</button>
           </div>
-          <Slider ch="r" label="R" />
-          <Slider ch="g" label="G" />
-          <Slider ch="b" label="B" />
+          {[['r', 'R'], ['g', 'G'], ['b', 'B']].map(([ch, label]) => (
+            <div key={ch} className="flex items-center gap-2">
+              <span className="ui-label text-[9px] w-3">{label}</span>
+              <input type="range" min={0} max={255} step={1} value={c[ch]}
+                onChange={(e) => setCh(ch, parseInt(e.target.value, 10))}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="flex-1 mix-range" style={{ background: track(ch) }} />
+              <span className="ui-value text-[9px] w-6 text-right">{c[ch]}</span>
+            </div>
+          ))}
         </div>,
         document.body
       )}
