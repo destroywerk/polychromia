@@ -6,6 +6,7 @@ import { Transport } from './components/panels/Transport';
 import { Mixer } from './components/panels/Mixer';
 import { HamburgerButton } from './components/ui/icons';
 import { imageToPatch } from './utils/imageToPatch';
+import polyMark from './assets/polychromia-mark.png';
 
 function StartOverlay({ onStart }) {
   return (
@@ -16,21 +17,25 @@ function StartOverlay({ onStart }) {
         <div className="absolute bottom-1/3 right-1/4 w-72 h-72 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #9a93d4 0%, transparent 70%)', filter: 'blur(60px)', animation: 'breathe 9s ease-in-out infinite 2s' }} />
         <div className="absolute top-1/2 right-1/3 w-56 h-56 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #d48fb0 0%, transparent 70%)', filter: 'blur(50px)', animation: 'breathe 11s ease-in-out infinite 1s' }} />
       </div>
-      <div className="relative w-full max-w-[1120px] mx-auto px-14">
-        <div className="max-w-[470px]">
-          <h1 className="font-cal text-white tracking-tight leading-[0.95]" style={{ fontSize: 70 }}>Polychromia</h1>
-          <div className="ui-label mt-3 ml-[168px]" style={{ fontSize: 14.5 }}>Form as sound.</div>
-          <p className="ui-label mt-9 leading-relaxed" style={{ fontSize: 14, maxWidth: 397 }}>
-            Upload an image to translate it into audio. Patch oscillators, sequencers, loopers and radio streams together on a modular canvas. Shape everything with effects and motion.
-          </p>
-          <div className="mt-7" style={{ width: 400 }}>
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
-          </div>
-          <button onClick={onStart}
-            className="ctl mt-9 h-[60px] w-[215px] rounded-lg flex items-center justify-center">
-            <span className="ui-value" style={{ fontSize: 20 }}>Enter studio</span>
-          </button>
+      <div className="relative flex flex-col items-center text-center px-6">
+        {/* Mark + wordmark */}
+        <div className="flex items-center gap-6">
+          <img src={polyMark} alt="" aria-hidden="true" className="w-[132px] h-[132px] object-contain" draggable="false" />
+          <h1 className="font-cal text-white tracking-tight leading-none" style={{ fontSize: 70 }}>Polychromia</h1>
         </div>
+
+        {/* Divider — 0.5px, 40% */}
+        <div className="mt-10" style={{ width: 564, height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
+
+        {/* Subtext — 50% */}
+        <p className="mt-7 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 564, color: 'rgba(255,255,255,0.5)' }}>
+          Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, loopers and radio streams together on a modular canvas. Shape everything with effects and motion.
+        </p>
+
+        <button onClick={onStart}
+          className="ctl mt-9 h-[58px] w-[192px] rounded-lg flex items-center justify-center">
+          <span className="ui-value" style={{ fontSize: 20 }}>Enter studio</span>
+        </button>
       </div>
     </div>
   );
