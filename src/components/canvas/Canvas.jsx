@@ -167,7 +167,14 @@ export function Canvas({ graph, viewportRef }) {
 
       {/* Zoom indicator */}
       <div className="absolute bottom-3 right-3 text-right no-select">
-        <div className="ui-label">Made by Tim Green. 2026.</div>
+        <div className="ui-label">
+          Made by{' '}
+          <a href="https://timgreen.design/" target="_blank" rel="noopener noreferrer"
+            className="no-underline hover:underline" style={{ color: 'inherit' }}>
+            Tim Green
+          </a>
+          . 2026.
+        </div>
         <div className="ui-label">{Math.round(scale * 100)}% · ⌘/Ctrl + scroll to zoom · drag bg to pan</div>
       </div>
     </div>
