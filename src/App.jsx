@@ -34,7 +34,7 @@ function StartOverlay({ onStart }) {
 
         {/* Subtext (left, 50%) + Enter studio (right) */}
         <div className="mt-8 flex items-start justify-between gap-10">
-          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 296, color: 'rgba(255,255,255,0.5)', marginTop: -4 }}>
+          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, maxWidth: 296, color: '#ffffff', marginTop: -4 }}>
             Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, and radio streams together on a modular canvas and shape with effects &amp; motion.
           </p>
 
@@ -64,6 +64,28 @@ function StartOverlay({ onStart }) {
 }
 
 function MobileLanding() {
+  const [copied, setCopied] = useState(false);
+
+  const handleContinue = async () => {
+    const url = window.location.href;
+    // Web Share opens the OS/browser share sheet. On Chrome (signed in) this
+    // includes "Send to your devices" so the user can open it on desktop.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Polychromia', text: 'Open Polychromia on desktop', url });
+        return;
+      } catch {
+        return; // user dismissed the sheet
+      }
+    }
+    // Fallback: copy the link so it can be pasted on a desktop device.
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col"
       style={{ background: 'radial-gradient(ellipse at top, #0d0d11 0%, #060608 72%)' }}>
@@ -92,8 +114,16 @@ function MobileLanding() {
         </p>
       </div>
 
-      {/* Footer */}
+      {/* Continue-on-desktop + footer */}
       <div className="absolute bottom-0 left-0 right-0 px-6 pb-8">
+        <p className="mb-4" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+          Open your share sheet to continue — on Chrome, choose “Send to your devices” to open it on a desktop you’re signed into.
+        </p>
+        <button onClick={handleContinue}
+          className="ctl w-full h-[58px] rounded-lg flex items-center justify-center mb-8">
+          <span className="ui-value" style={{ fontSize: 18 }}>{copied ? 'Link copied' : 'Continue on desktop'}</span>
+        </button>
+
         <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)', marginBottom: 14 }} />
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
           Made by{' '}
