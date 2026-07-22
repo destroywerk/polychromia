@@ -754,7 +754,6 @@ function LooperBody({ p, a, update, handle }) {
         </button>
         <Knob value={p.level} min={0} max={1} onChange={(v) => update('level', v)} label="lvl" accent={a} format={fPct} />
       </Row>
-      <div className="ui-label text-[8px] leading-relaxed">Chain effects after the ▸ out to process the loop.</div>
     </div>
   );
 }
