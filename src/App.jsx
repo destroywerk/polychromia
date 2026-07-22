@@ -12,7 +12,7 @@ function StartOverlay({ onStart }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
       style={{ background: 'radial-gradient(ellipse at center, #0d0d11 0%, #060608 72%)' }}>
-      <div className="relative flex flex-col" style={{ width: 520 }}>
+      <div className="relative flex flex-col" style={{ width: 620 }}>
         {/* Animated wave mark + wordmark — the wave overhangs to the left while the
             title overlaps its trailing crest, mirroring the mark. */}
         <div className="flex items-center justify-end">
@@ -22,19 +22,19 @@ function StartOverlay({ onStart }) {
             aria-hidden="true"
             draggable="false"
             className="wave-anim select-none"
-            style={{ height: 232, width: 'auto', marginLeft: -150, marginRight: -46 }}
+            style={{ height: 278, width: 'auto', marginLeft: -178, marginRight: -56 }}
           />
-          <h1 className="font-cal text-white tracking-tight leading-none relative z-10" style={{ fontSize: 66 }}>
+          <h1 className="font-cal text-white tracking-tight leading-none relative z-10" style={{ fontSize: 82 }}>
             Polychromia
           </h1>
         </div>
 
         {/* Divider — 0.5px, 40% */}
-        <div className="mt-6" style={{ width: 520, height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
+        <div className="mt-6" style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
 
         {/* Subtext (left, 50%) + Enter studio (right) */}
         <div className="mt-8 flex items-start justify-between gap-10">
-          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, maxWidth: 296, color: '#ffffff', marginTop: -4 }}>
+          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 400, color: '#ffffff', marginTop: -4 }}>
             Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, and radio streams together on a modular canvas and shape with effects &amp; motion.
           </p>
 
@@ -47,9 +47,9 @@ function StartOverlay({ onStart }) {
 
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-8">
-        <div style={{ width: 520 }}>
+        <div style={{ width: 620 }}>
           <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)', marginBottom: 14 }} />
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>
             Made by{' '}
             <a href="https://timgreen.design/" target="_blank" rel="noopener noreferrer"
               className="no-underline hover:underline" style={{ color: 'inherit' }}>
