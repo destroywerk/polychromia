@@ -34,7 +34,7 @@ function StartOverlay({ onStart }) {
 
         {/* Subtext (left, 50%) + Enter studio (right) */}
         <div className="mt-8 flex items-start justify-between gap-10">
-          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 296, color: 'rgba(255,255,255,0.5)', marginTop: -2 }}>
+          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 296, color: 'rgba(255,255,255,0.5)', marginTop: -4 }}>
             Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, and radio streams together on a modular canvas and shape with effects &amp; motion.
           </p>
 
