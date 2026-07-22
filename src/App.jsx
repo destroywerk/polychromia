@@ -104,8 +104,8 @@ function MobileLanding() {
             Polychromia
           </h1>
         </div>
-        {/* Divider — 0.5px, 40% */}
-        <div className="mt-4" style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
+        {/* Divider — 0.5px, 40% (nudged down 20px) */}
+        <div style={{ marginTop: 36, width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
       </div>
 
       <div className="px-6 mt-12">
