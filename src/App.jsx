@@ -44,6 +44,21 @@ function StartOverlay({ onStart }) {
           </button>
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-8">
+        <div style={{ width: 520 }}>
+          <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)', marginBottom: 14 }} />
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+            Made by{' '}
+            <a href="https://timgreen.design/" target="_blank" rel="noopener noreferrer"
+              className="no-underline hover:underline" style={{ color: 'inherit' }}>
+              Tim Green
+            </a>
+            . 2026.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
