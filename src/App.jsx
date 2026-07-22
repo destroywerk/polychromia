@@ -117,7 +117,7 @@ function MobileLanding() {
       {/* Continue-on-desktop + footer */}
       <div className="absolute bottom-0 left-0 right-0 px-6 pb-8">
         <p className="mb-4" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-          Open your share sheet to continue. On Chrome, choose “Send to your devices” to open it on a desktop you’re signed into.
+          Open your share sheet to continue. On Chrome, choose “Send to your devices” and choose a desktop you’re signed into.
         </p>
         <button onClick={handleContinue}
           className="ctl w-full h-[58px] rounded-lg flex items-center justify-center mb-8">
