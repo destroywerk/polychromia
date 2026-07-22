@@ -108,7 +108,7 @@ function MobileLanding() {
         <div style={{ marginTop: 36, width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
       </div>
 
-      <div className="px-6 mt-12">
+      <div className="px-6" style={{ marginTop: 40 }}>
         <p className="text-white" style={{ fontFamily: 'Inter, sans-serif', fontSize: 17 }}>
           For now, Polychromia only works on desktop.
         </p>
