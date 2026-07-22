@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useGraph } from './graph/useGraph';
 import { Canvas } from './components/canvas/Canvas';
 import { NodePalette } from './components/panels/NodePalette';
@@ -63,6 +63,51 @@ function StartOverlay({ onStart }) {
   );
 }
 
+function MobileLanding() {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: 'radial-gradient(ellipse at top, #0d0d11 0%, #060608 72%)' }}>
+      <div className="px-6 pt-16">
+        {/* Wave mark + wordmark */}
+        <div className="flex items-center justify-end">
+          <img
+            src={polyWave}
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            className="wave-anim select-none"
+            style={{ height: 150, width: 'auto', marginLeft: -70, marginRight: -30 }}
+          />
+          <h1 className="font-cal text-white tracking-tight leading-none relative z-10" style={{ fontSize: 40 }}>
+            Polychromia
+          </h1>
+        </div>
+        {/* Divider — 0.5px, 40% */}
+        <div className="mt-4" style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
+      </div>
+
+      <div className="px-6 mt-12">
+        <p className="text-white" style={{ fontFamily: 'Inter, sans-serif', fontSize: 17 }}>
+          For now, Polychromia only works on desktop.
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 left-0 right-0 px-6 pb-8">
+        <div style={{ width: '100%', height: '0.5px', background: 'rgba(255,255,255,0.4)', marginBottom: 14 }} />
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+          Made by{' '}
+          <a href="https://timgreen.design/" target="_blank" rel="noopener noreferrer"
+            className="no-underline hover:underline" style={{ color: 'inherit' }}>
+            Tim Green
+          </a>
+          . 2026.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const graph = useGraph();
   const [started, setStarted] = useState(false);
@@ -72,6 +117,17 @@ export default function App() {
   const [mixerCollapsed, setMixerCollapsed] = useState(false);
   const cascade = useRef(0);
   const viewportRef = useRef({ pan: { x: 80, y: 40 }, scale: 1 });
+
+  // The modular studio is desktop-only by design; small screens get a landing.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const handleStart = async () => { await graph.init(); setStarted(true); };
 
@@ -140,6 +196,8 @@ export default function App() {
       if (firstFxId) graph.addConnection({ node: id, port: 'out', kind: 'audio' }, { node: firstFxId, port: 'in', kind: 'audio' });
     });
   }, [graph, spawnPoint]);
+
+  if (isMobile) return <MobileLanding />;
 
   return (
     <>
