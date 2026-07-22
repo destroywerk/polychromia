@@ -205,3 +205,14 @@ input[type=range].mix-range::-moz-range-thumb {
   0%, 100% { opacity: 0.5; transform: scale(1); }
   50% { opacity: 0.9; transform: scale(1.04); }
 }
+
+/* Living gradient wave: gently shifts hue/saturation and pulses a soft glow so
+   the colours appear to animate within the mark. */
+@keyframes waveShift {
+  0%, 100% { filter: hue-rotate(-20deg) saturate(1.05) brightness(1) drop-shadow(0 0 16px rgba(150,140,220,0.10)); }
+  50%      { filter: hue-rotate(26deg) saturate(1.3) brightness(1.08) drop-shadow(0 0 34px rgba(120,200,180,0.22)); }
+}
+.wave-anim {
+  animation: waveShift 9s ease-in-out infinite;
+  will-change: filter;
+}

@@ -6,36 +6,43 @@ import { Transport } from './components/panels/Transport';
 import { Mixer } from './components/panels/Mixer';
 import { HamburgerButton } from './components/ui/icons';
 import { imageToPatch } from './utils/imageToPatch';
-import polyMark from './assets/polychromia-mark.png';
+import polyWave from './assets/polychromia-wave.png';
 
 function StartOverlay({ onStart }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-      style={{ background: 'radial-gradient(ellipse at center, #101016 0%, #08080a 70%)' }}>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 left-1/4 w-96 h-96 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #8fbaa9 0%, transparent 70%)', filter: 'blur(70px)', animation: 'breathe 7s ease-in-out infinite' }} />
-        <div className="absolute bottom-1/3 right-1/4 w-72 h-72 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #9a93d4 0%, transparent 70%)', filter: 'blur(60px)', animation: 'breathe 9s ease-in-out infinite 2s' }} />
-        <div className="absolute top-1/2 right-1/3 w-56 h-56 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #d48fb0 0%, transparent 70%)', filter: 'blur(50px)', animation: 'breathe 11s ease-in-out infinite 1s' }} />
-      </div>
-      <div className="relative flex flex-col items-center text-center px-6">
-        {/* Mark + wordmark */}
-        <div className="flex items-center gap-6">
-          <img src={polyMark} alt="" aria-hidden="true" className="h-[124px] w-auto" draggable="false" />
-          <h1 className="font-cal text-white tracking-tight leading-none" style={{ fontSize: 70 }}>Polychromia</h1>
+      style={{ background: 'radial-gradient(ellipse at center, #0d0d11 0%, #060608 72%)' }}>
+      <div className="relative flex flex-col" style={{ width: 520 }}>
+        {/* Animated wave mark + wordmark — the wave overhangs to the left while the
+            title overlaps its trailing crest, mirroring the mark. */}
+        <div className="flex items-center justify-end">
+          <img
+            src={polyWave}
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            className="wave-anim select-none"
+            style={{ height: 232, width: 'auto', marginLeft: -150, marginRight: -46 }}
+          />
+          <h1 className="font-cal text-white tracking-tight leading-none relative z-10" style={{ fontSize: 66 }}>
+            Polychromia
+          </h1>
         </div>
 
         {/* Divider — 0.5px, 40% */}
-        <div className="mt-10" style={{ width: 564, height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
+        <div className="mt-6" style={{ width: 520, height: '0.5px', background: 'rgba(255,255,255,0.4)' }} />
 
-        {/* Subtext — 50% */}
-        <p className="mt-7 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 564, color: 'rgba(255,255,255,0.5)' }}>
-          Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, and radio streams together on a modular canvas and shape with effects &amp; motion.
-        </p>
+        {/* Subtext (left, 50%) + Enter studio (right) */}
+        <div className="mt-8 flex items-start justify-between gap-10">
+          <p className="leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, maxWidth: 296, color: 'rgba(255,255,255,0.5)' }}>
+            Form as sound. Upload an image to translate it into audio. Patch oscillators, sequencers, and radio streams together on a modular canvas and shape with effects &amp; motion.
+          </p>
 
-        <button onClick={onStart}
-          className="ctl mt-9 h-[58px] w-[192px] rounded-lg flex items-center justify-center">
-          <span className="ui-value" style={{ fontSize: 20 }}>Enter studio</span>
-        </button>
+          <button onClick={onStart}
+            className="ctl shrink-0 h-[58px] w-[172px] rounded-lg flex items-center justify-center">
+            <span className="ui-value" style={{ fontSize: 20 }}>Enter studio</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -166,7 +173,8 @@ export default function App() {
         {graph.nodes.length === 0 && started && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center">
-            <div className="text-white/10 text-8xl mb-5 font-cal">∿</div>
+            <img src={polyWave} alt="" aria-hidden="true" draggable="false"
+              className="wave-anim mx-auto mb-6 select-none" style={{ height: 72, width: 'auto', opacity: 0.6 }} />
             <div className="ui-label" style={{ fontSize: 16 }}>Add a node from the left panel to begin patching</div>
             </div>
           </div>
